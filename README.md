@@ -23,10 +23,13 @@ HermesReports/
 
 | 主题 | 关键词 | 更新频率 |
 |---|---|---|
-| ⏰ Java 定时任务 / 分布式调度 | Spring Boot · XXL-JOB · PowerJob · SnailJob · 虚拟线程 | 每天 00:30 (Asia/Shanghai) |
+| 🧠 LLM 前沿进展 | 新模型发布 · arXiv 论文 · 推理/训练 · benchmark · 开源模型 | 每天 00:30 (Asia/Shanghai) |
+| 🤖 Agent 进展 | LangChain/LangGraph · CrewAI · MCP 生态 · 多智能体 · 企业落地 | 每天 00:30 (Asia/Shanghai) |
+| ☕ Java 工程进展 | JDK/JEP · Spring Boot · Quarkus · Maven/Gradle · 工程实践 | 每天 00:30 (Asia/Shanghai) |
 
 ## 📖 最新报告
 
+- [2026-10-20 · 前沿技术日报：LLM · Agent · Java](reports/2026-10-20-frontier-daily.md)
 - [2026-10-19 · Spring Boot / Java 定时任务前沿调研](reports/2026-10-19-spring-boot-scheduling-frontier.md)
 
 ---
