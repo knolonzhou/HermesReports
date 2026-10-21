@@ -29,6 +29,7 @@ HermesReports/
 
 ## 📖 最新报告
 
+- [2026-10-22 前沿日报](reports/2026-10-22-frontier-daily.md)
 - [2026-10-21 · 前沿技术日报：LLM · Agent · Java](reports/2026-10-21-frontier-daily.md)
 - [2026-10-20 · 前沿技术日报：LLM · Agent · Java](reports/2026-10-20-frontier-daily.md)
 - [2026-10-19 · Spring Boot / Java 定时任务前沿调研](reports/2026-10-19-spring-boot-scheduling-frontier.md)
