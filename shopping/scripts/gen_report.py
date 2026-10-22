@@ -7,7 +7,7 @@ from collections import defaultdict, Counter
 DATE = os.environ.get('SATA_DATE') or time.strftime('%Y-%m-%d')
 MONTH = DATE[5:7]  # e.g. '10'
 REPO = '/root/HermesReports'
-rows = json.load(open(f'{REPO}/data/{DATE}-sata-deals.json'))
+rows = json.load(open(f'{REPO}/shopping/data/{DATE}-sata-deals.json'))
 
 RAW_DIR = os.environ.get('SATA_RAW_DIR', '/root/.hermes/workspace/sata_scrape')
 if not RAW_DIR.endswith('raw'):
@@ -49,7 +49,7 @@ L = []
 L.append(f"# SATA3.0 固态硬盘 & 机械硬盘 全网比价大数据报告（{DATE}）\n")
 L.append("> 本报告基于 **什么值得买多平台好价数据库** 程序化抓取解析生成，覆盖京东、天猫/淘宝、拼多多、抖音商城等平台的真实成交爆料价。")
 L.append(f"> 原始好价记录 **{len(rows)} 条**（去重后），其中 {MONTH} 月记录 **{len(month_rows)} 条**，可计入单价排行的有效记录 **{len(good)} 条**。")
-L.append(f"> 机器可读数据：`data/{DATE}-sata-deals.csv` / `.json`\n")
+L.append(f"> 机器可读数据：`shopping/data/{DATE}-sata-deals.csv` / `.json`\n")
 L.append("## 数据概览\n")
 plat = Counter(r['platform'] or '未知' for r in month_rows)
 cat = Counter(r['category'] for r in month_rows)
@@ -144,11 +144,11 @@ L.append("- 价格为爆料时刻到手价，大促期间变动快，**下单前
 
 L.append("\n---\n")
 L.append("### 附录：完整数据文件\n")
-L.append(f"- CSV（Excel 可直接打开）：[data/{DATE}-sata-deals.csv](https://github.com/knolonzhou/HermesReports/blob/main/data/{DATE}-sata-deals.csv)")
-L.append(f"- JSON（程序可读）：[data/{DATE}-sata-deals.json](https://github.com/knolonzhou/HermesReports/blob/main/data/{DATE}-sata-deals.json)")
+L.append(f"- CSV（Excel 可直接打开）：[data/{DATE}-sata-deals.csv](https://github.com/knolonzhou/HermesReports/blob/main/shopping/data/{DATE}-sata-deals.csv)")
+L.append(f"- JSON（程序可读）：[data/{DATE}-sata-deals.json](https://github.com/knolonzhou/HermesReports/blob/main/shopping/data/{DATE}-sata-deals.json)")
 L.append(f"\n*报告由 Hermes Agent 自动生成 · 抓取/解析/排行全流程程序化 · {DATE}*")
 
-p = f'{REPO}/reports/{DATE}-sata-storage-deals-bigdata.md'
+p = f'{REPO}/shopping/reports/{DATE}-sata-storage-deals-bigdata.md'
 open(p, 'w', encoding='utf-8').write('\n'.join(L))
 print("report written:", p, os.path.getsize(p), "bytes;",
       f"{len(rows)} rows, {len(month_rows)} this month, {len(good)} ranked, {PAGES} pages")

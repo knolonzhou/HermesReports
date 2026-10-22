@@ -99,12 +99,12 @@ for d in rows:
             old['capacity_gb'] = d['capacity_gb']
 rows = list(byid.values())
 
-os.makedirs(f'{REPO}/data', exist_ok=True)
-with open(f'{REPO}/data/{DATE}-sata-deals.json', 'w', encoding='utf-8') as f:
+os.makedirs(f'{REPO}/shopping/data', exist_ok=True)
+with open(f'{REPO}/shopping/data/{DATE}-sata-deals.json', 'w', encoding='utf-8') as f:
     json.dump(rows, f, ensure_ascii=False, indent=1)
 
 fields = ['category','platform','date','title','capacity_gb','cap_ambiguous','price','price_per_gb','plausible','need_coupon','tag','url']
-with open(f'{REPO}/data/{DATE}-sata-deals.csv', 'w', encoding='utf-8-sig', newline='') as f:
+with open(f'{REPO}/shopping/data/{DATE}-sata-deals.csv', 'w', encoding='utf-8-sig', newline='') as f:
     w = csv.DictWriter(f, fieldnames=fields)
     w.writeheader()
     for d in sorted(rows, key=lambda x: (x['category'], x['date'] or '')):
