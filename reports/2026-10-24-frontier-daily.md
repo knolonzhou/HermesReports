@@ -44,6 +44,10 @@ flowchart LR
 
 - **DeepSeek 完成约 1000 亿元人民币（$15B）融资**（Bloomberg 10-22）：腾讯、宁德时代领投，美团、吉利、美的、兆易创新跟投，投前估值约 5000 亿元，融资目标从 500 亿两度上调至 1000 亿——中国史上最大私募轮之一，正在为 IPO 铺路。与 OpenAI/Anthropic 各超 $1000 亿的弹药量相比仍有差距，但足以支撑其低价开源路线继续打。[来源](https://finance.yahoo.com/news/deepseek-raises-15-bln-tencent-035409859.html)
 - **OpenAI Decisions API 正式 GA**（10-22）：基于 GPT-6 Luna 的专用分类/路由端点，单请求最多 400 个问题，只收输入费 $0.10/M token，官方称比 Responses API 快最多 10 倍。瞄准的正是 agent 内部海量的小分类调用——「用大模型做 if/else」终于有了专用廉价通道。[来源](https://www.advanceintelligence.ai/2026-10-22)
+![Mistral Voxtral 3](assets/2026-10-24/mistral-voxtral3-hero.png)
+
+> *图：Voxtral 3 官方发布配图。出处：[Mistral AI](https://mistral.ai/news/voxtral-3/)*
+
 - **Mistral 发布 Voxtral 3 语音全家桶 + Voice Agent SDK**：Voxtral Small Transcribe 3 支持 50+ 语言转写（含说话人分离、end-of-turn 检测），批量 $0.0035/分钟、实时 $0.008/分钟且延迟 <500ms；基于 LiveKit 的 SDK 把「听→想→调工具→说」做成单条流式管线，主打欧洲主权部署。语音 agent 从拼装 ASR+LLM+TTS 进入一体化 SDK 时代。[来源](https://mistral.ai/news/voxtral-3/)
 - **MiniMax M3.1 Flash 权重开源**（10-22）：428B 总参/23B 激活的原生多模态 MoE，1M 上下文，已上 Hugging Face 和 ModelScope；API 定价 $0.15/$0.60 每百万 token。开源前沿 MoE 的「大参数小激活」路线又添一个重量级选手。[来源](https://www.advanceintelligence.ai/2026-10-22)
 - **Claude 模型「Anthropic 托管」版本在 Google Cloud GA**（10-22）：与 OpenAI 前一日入驻 GCP 呼应——Anthropic 自己运营推理栈（Day-0 获得 Claude Managed Agents、skills、code execution 等新特性），但认证走 GCP IAM、账单走 Marketplace、可抵扣消费承诺；需要 Google 当数据处理方/严格数据驻留的客户仍选 Google 托管版。**三大闭源前沿模型现已全部集齐于 GCP**，多云模型采购彻底「货架化」。[来源](https://cloud.google.com/blog/products/ai-machine-learning/expanding-claude-availability-on-google-cloud)
