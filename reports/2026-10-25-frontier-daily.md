@@ -34,7 +34,13 @@
 
 ### 📰 要闻简报
 
-- **Block 发布 Dessa：只用语音、从零训练的对话模型**（10-23，HN 首页）：不用任何文本、不基于预训练模型，纯靠「听人说话」学会实时全双工对话，能感知情绪、打断和自然语流；官方称在**一台 GB200 NVL72 上完成训练**，可跑在消费级 GPU 上，团队称之为「语音界的 GPT-3 时刻」。语音模型摆脱「ASR→LLM→TTS 三段式」的标志性一步。[来源](https://block.xyz/dessa)
+- **Block 发布 Dessa：只用语音、从零训练的对话模型**（10-23，HN 首页）：
+
+  ![Dessa](assets/2026-10-25/dessa.jpg)
+
+  *图：Dessa 官方发布配图（来源：[block.xyz/dessa](https://block.xyz/dessa)）*
+
+  不用任何文本、不基于预训练模型，纯靠「听人说话」学会实时全双工对话，能感知情绪、打断和自然语流；官方称在**一台 GB200 NVL72 上完成训练**，可跑在消费级 GPU 上，团队称之为「语音界的 GPT-3 时刻」。语音模型摆脱「ASR→LLM→TTS 三段式」的标志性一步。[来源](https://block.xyz/dessa)
 - **Anthropic 为关键开源项目提供 opt-in 安全扫描**（InfoQ 10-23）：用 Claude 给重要 OSS 项目做自动化安全审计，项目方可自愿接入——继上周 Theorem 形式化验证合作后，Anthropic 在「AI 守护开源供应链」上再落一子。[来源](https://www.infoq.com/news/2026/10/anthropic-oss-security-scanner/)
 - **arXiv 新论文《The Value of Memory in Language Agents》**：系统性量化记忆模块对语言 agent 任务成功率的边际贡献，为「该不该给 agent 上记忆」提供实证依据；同批还有 ReflectPO（反思引导的长时程 agent 策略优化）。[来源](https://arxiv.org/abs/2610.31303)
 - **arXiv：《FusionEval: Benchmarking Model Fusion for LLMs》**：首个系统评测「模型融合」（权重合并）的 benchmark——merge 社区玩了一年终于有正经度量了。[来源](https://arxiv.org/abs/2610.30162)
