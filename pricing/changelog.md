@@ -1,5 +1,11 @@
 # 价格变动日志
 
+## 2026-10-25（每日核对）
+- 重新核对 30 行模型现价（OpenAI 官方定价页+platform 定价表、docs.claude.com、ai.google.dev、api-docs.deepseek.com、docs.mistral.ai、OpenRouter API、阿里云百炼经 developer.aliyun.com 汇总）：**全部与 10-24 基线一致，零变动**。Qwen 三行今日已重新核对（Qwen3-Max ¥2.5/¥10、Qwen3.5-Plus ¥0.8/¥4.8、Qwen-Long ¥0.5/¥2 不变）。
+- 在途优惠核实仍有效：GPT-5.6 Sol 促销 $4/$20（至少至 11-21）、Gemini 4 Argon 首发价 $2/$10（至 11-30）、Gemini 3.8 Flash $0.75/$3.75（至 12-31）、DeepSeek Search/Fetch 免费（至 11-01 北京时间）。
+- 近 7 天新闻扫描（第三方追踪 SF·SIX/ModelBank/Sovyron/apipriceindex）：官方一手价无新变动；渠道/聚合价波动大——阿里云托管 DeepSeek V4 Flash 0731 回落 50%（$0.352/$1.06→$0.176/$0.528，10-24），百度渠道 DeepSeek V4 Pro/Flash、GLM 5.2 折扣低至 1-2 折（限时渠道价）。均非本板基线模型的一手官方价，不触发快报。
+- 未发现主流模型官方降价 ≥20%、新免费层或新限时折扣。
+
 ## 2026-10-24（每日核对）
 - 重新核对 29 个模型现价：OpenAI（gpt-6 全系/5.6 系/5.3 Codex）、Anthropic（Fable 5.1/Opus 5.5/Sonnet 5.5/Haiku 5.5 及 legacy）、Google（Argon/3.8 Flash/3.1 Pro/3.5 Flash-Lite）、DeepSeek（Flash/V4 Pro）、Mistral 全系、Llama（OpenRouter）——除下列变动外均与 10-23 基线一致。Qwen 百炼行今日未重新核对（沿用 10-23）。
 - 🔺 **Mistral Large 4 促销结束**：$0.68/$2.09（发布 5 折）→ 恢复原价 $1.36/$4.18（对促销用户等效 +100%）。来源：docs.mistral.ai/inference/pricing。
