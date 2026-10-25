@@ -25,7 +25,7 @@ OpenAI 于 10-23 发布安全博文，宣布**前沿模型的训练与大部分�
 ![OpenAI 训练断网](assets/2026-10-26/openai-no-internet.jpg)
 *图：OpenAI 宣布前沿模型训练不再接触活互联网（图源：[The Verge](https://www.theverge.com/ai-artificial-intelligence/1018021/openai-training-top-ai-models-no-internet)）*
 
-[来源：OpenAI 官方博文](https://openai.com/index/securing-our-frontier-model-training-environment/) · [TechCrunch 报道](https://techcrunch.com/2026-10-23/openai-says-it-will-no-longer-train-its-ai-models-on-the-live-internet-citing-significant-risks/) · [The Verge 报道](https://www.theverge.com/ai-artificial-intelligence/1018021/openai-training-top-ai-models-no-internet)
+[来源：OpenAI 官方博文](https://openai.com/index/securing-our-frontier-model-training-environment) · [TechCrunch 报道](https://techcrunch.com/2026/10/23/openai-says-it-will-no-longer-train-its-ai-models-on-the-live-internet-citing-significant-risks/) · [The Verge 报道](https://www.theverge.com/ai-artificial-intelligence/1018021/openai-training-top-ai-models-no-internet)
 
 ### 📰 要闻简报
 
@@ -36,7 +36,7 @@ OpenAI 于 10-23 发布安全博文，宣布**前沿模型的训练与大部分�
 
 - **论文：Direct Pass@k Optimization 做「思维剪枝」**（arXiv 10-24）：test-time reasoning 里直接对 Pass@k 目标做优化，在质量与多样性之间取得平衡——采样多条推理链时不再只盯单链正确率，而是显式优化 k 次内命中的概率，对 best-of-N 类推理框架有直接参考价值。[来源](http://arxiv.org/abs/2610.31667v1)
 - **论文：深度增长与循环如何塑造 In-Context Learning**（arXiv 10-24）：实证研究 Transformer 层数增长 vs 层间循环（looping/weight-tying）对 ICL 能力的不同贡献，给「小模型+循环」路线提供依据。[来源](http://arxiv.org/abs/2610.31421v1)
-- **政治偏好测试：Grok 选共和党、OpenAI 模型选民主党**（TechCrunch 10-24）：强制二选一的评测再次暴露各家模型的系统性政治倾斜，模型价值观对齐差异正成为企业选型的显性维度。[来源](https://techcrunch.com/2026-10-24/forced-to-pick-groks-ai-model-chooses-republicans-openais-picks-democrats/)
+- **政治偏好测试：Grok 选共和党、OpenAI 模型选民主党**（TechCrunch 10-24）：强制二选一的评测再次暴露各家模型的系统性政治倾斜，模型价值观对齐差异正成为企业选型的显性维度。[来源](https://techcrunch.com/2026/10/24/forced-to-pick-groks-ai-model-chooses-republicans-openais-picks-democrats/)
 
 ---
 
@@ -93,13 +93,13 @@ Inside Java 于 10-25 确认 **JEP 544: Ahead-of-Time Code Compilation** 正式 
 ![JEP 544 启动性能](assets/2026-10-26/jep544-aot-startup.png)
 *图：JEP 544 官方基准——5 个框架应用的启动耗时对比（图源：[openjdk.org/jeps/544](https://openjdk.org/jeps/544)）*
 
-[来源：Inside Java 公告](https://inside.java/2026-10-25/jep544-target-jdk28/) · [JEP 544 全文](https://openjdk.org/jeps/544) · [ej-technologies 深度对比](https://www.ej-technologies.com/blog//2026/09/hotspot-strikes-back-jep-544-and-the-end-of-the-graalvm-startup-monopoly)
+[来源：Inside Java 公告](https://inside.java/2026/10/25/jep544-target-jdk28) · [JEP 544 全文](https://openjdk.org/jeps/544) · [ej-technologies 深度对比](https://www.ej-technologies.com/blog//2026/09/hotspot-strikes-back-jep-544-and-the-end-of-the-graalvm-startup-monopoly)
 
 ### 📰 要闻简报
 
 - **Spring Boot 4.2.0-RC1 / 4.1.2 / 4.0.9 同日放出**（10-22）：4.2 进入 RC 阶段（按节奏 11 月 GA），4.1/4.0 维护线补丁同步更新——生产在 4.0/4.1 的项目本周可安排补丁升级，4.2 尝鲜可开始验证 RC。[来源](https://github.com/spring-projects/spring-boot/releases)
 - **PingCAP 数据泄露：客户记录与源码曝光**（InfoQ 10-25）：TiDB 厂商 PingCAP 云服务被入侵，客户记录和源代码外泄——用 TiDB Cloud 的团队应排查凭据轮换，也再次说明数据库厂商本身就在攻击面上。[来源](https://www.infoq.com/news/2026/10/pingcap-cloud-data-breach/)
-- **Inside Java：《我的 JVM 出了什么事？！首次故障诊断指南》**（10-22）：面向第一次遭遇 JVM 崩溃/挂起的工程师的系统化排查路径（crash log、jcmd、JFR 起手式），适合作为团队 runbook 底稿。[来源](https://inside.java/2026-10-22/jvm-diagnosis/)
+- **Inside Java：《我的 JVM 出了什么事？！首次故障诊断指南》**（10-22）：面向第一次遭遇 JVM 崩溃/挂起的工程师的系统化排查路径（crash log、jcmd、JFR 起手式），适合作为团队 runbook 底稿。[来源](https://inside.java/2026/10/22/jvm-diagnosis)
 
 ---
 
