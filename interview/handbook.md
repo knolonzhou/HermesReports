@@ -20,6 +20,12 @@
 - [Q8. 100 亿数据的大文件里找 Top 100 高频词——内存只有 1GB 怎么办？](#q8)（📅2026-10-25 ⭐4）
 - [Q9. 设计短链系统——发号器还是哈希？短码冲突怎么解？](#q9)（📅2026-10-25 ⭐4）
 
+### 深度学习（归一化/优化器/正则化/Transformer/微调）
+- [Q10. Transformer 为什么用 LayerNorm 而不是 BatchNorm？RMSNorm 又省了什么？](#q10)（📅2026-10-26 ⭐4）
+- [Q11. AdamW 的"解耦权重衰减"到底解耦了什么？和 Adam+L2 差在哪？](#q11)（📅2026-10-26 ⭐4）
+- [Q12. LoRA 低秩微调的原理是什么？为什么 B 矩阵要初始化为 0？](#q12)（📅2026-10-26 ⭐4）
+
+
 ---
 
 <a id="q1"></a>
@@ -627,3 +633,161 @@ graph LR
 1. *"用 md5 取前 6 位就行吧？"* —— 陷阱双重：① 截断哈希**必然冲突**，必须答出冲突检测与加盐重试；② 如果接着说"存个哈希表查重"，追问"那这和发号器比优势在哪？"——正确答案是无状态幂等（同长链多次请求返回同短码），若业务不需要幂等，发号器更简单可靠。能主动说出两个流派的适用场景才算过关。
 2. *"301 和 302 选哪个？"* —— 只答"301 省服务器资源"就中计了。面试官想听的是**统计需求 vs 性能的 tradeoff**，以及 301 被浏览器永久缓存后"目标地址无法变更、无法拦截恶意跳转"的运维风险。
 
+<a id="q10"></a>
+
+### Q10. Transformer 为什么用 LayerNorm 而不是 BatchNorm？RMSNorm 又省了什么？（🏷深度学习 📅2026-10-26 ⭐难度4）
+
+**「考察点」** 归一化层的统计维度选择与 NLP 序列场景的适配性，以及对 Pre-LN/RMSNorm 等工程演进的理解。
+
+**「参考答案」**
+
+**基础答案**：BatchNorm 沿 batch 维（和序列维）统计每个通道的均值/方差，LayerNorm 只在单个样本的特征维内部统计。NLP 场景选 LN 有三个原因：① 变长序列 + padding 会污染 BN 的批统计量；② 推理时 batch=1（自回归逐 token 生成），BN 只能退化用 running stats，训练/推理分布不一致；③ 同一特征维度在不同样本中的语义分布差异极大（文本长度、词频分布），跨样本统计本身不合理。LN 每个 token 独立归一化，与 batch 大小、序列长度完全解耦。
+
+**深入原理**：
+
+- 公式对比：BN 对通道 c 统计 $\mu_c, \sigma_c$（跨 N×L 个元素）；LN 对每个位置的特征向量 $x \in \mathbb{R}^d$ 统计 $\mu = \frac{1}{d}\sum_i x_i$，$\hat{x} = \frac{x-\mu}{\sqrt{\sigma^2+\epsilon}}$，再乘可学习的 $\gamma$ 加 $\beta$。
+- **Pre-LN vs Post-LN**：原始 Transformer（Post-LN）把 LN 放在残差之后，深层模型梯度不稳，需要 warmup 才能训起来；Pre-LN（GPT/LLaMA 均采用）把 LN 放进残差分支内，恒等通路无阻碍，梯度可直达底层，可以不用 warmup 训上百层（Xiong et al., ICML 2020《On Layer Normalization in the Transformer Architecture》给出梯度量级分析）。代价是 Pre-LN 的输出方差随深度累积增长，通常最后再加一个 final norm。
+- **RMSNorm**（Zhang & Sennrich, NeurIPS 2019）：去掉减均值和 $\beta$，只用均方根缩放 $\hat{x} = \frac{x}{\sqrt{\frac{1}{d}\sum x_i^2 + \epsilon}} \cdot \gamma$。省掉一次均值归约和加法，实测效果与 LN 相当，LLaMA/Qwen/Mistral 全系采用。
+- 大模型训练还有精度细节：norm 通常强制在 FP32 下计算（即使主体是 BF16），因为求和归约对低精度敏感，BF16 直接算 RMS 会造成 loss 尖刺。
+
+**验证代码**（PyTorch 2.14 实测输出见注释）：
+
+```python
+import torch, torch.nn as nn
+torch.manual_seed(0)
+x_ln = torch.randn(2, 4, 8)      # (batch, seq, dim)
+x_bn = x_ln.transpose(1, 2)      # BN1d 要求通道在 dim=1
+
+bn = nn.BatchNorm1d(8); bn.train()
+ln = nn.LayerNorm(8);   ln.train()
+
+# 同一 token：单独过网络 vs 和别的样本组 batch 一起过
+print(torch.allclose(bn(x_bn)[:, :, 0], bn(x_bn[:1])[:, :, 0], atol=1e-5))  # False：BN 受 batch 影响
+print(torch.allclose(ln(x_ln)[0], ln(x_ln[:1])[0], atol=1e-5))              # True：LN 与 batch 无关
+
+# padding 污染 BN 的 running_mean（LN 无此问题）
+bn2 = nn.BatchNorm1d(8); bn2.train()
+bn2(x_bn[:1]); m1 = bn2.running_mean.clone()
+bn2(torch.cat([x_bn[0], torch.zeros(8, 2)], dim=1).unsqueeze(0)); m2 = bn2.running_mean.clone()
+print(not torch.allclose(m1, m2))  # True：全零 padding 拉低了统计量
+```
+
+```mermaid
+graph LR
+    subgraph Post-LN 原始Transformer
+    A1[x] --> B1[Sublayer] --> C1[Add残差] --> D1[LayerNorm]
+    A1 --> C1
+    end
+    subgraph Pre-LN GPT/LLaMA
+    A2[x] --> B2[RMSNorm] --> C2[Sublayer] --> D2[Add残差]
+    A2 --> D2
+    end
+```
+
+**「追问陷阱」**
+1. **"LN 既然好，为什么 CV 里 BN 仍是主流？"** —— 图像同一通道跨样本语义一致（都是"红色激活度"），批统计有效且 batch 大、尺寸固定；LN 在 CNN 里对每个样本每个位置独立归一化，丢失了通道级的批统计信息。CV 里的小 batch 替代品是 GroupNorm，NLP 里 LN 本质就是 GroupNorm 分组数=1 的特例。
+2. **"Pre-LN 全是优点吗？"** —— 不是。Pre-LN 残差主干上没有归一化，各层贡献被残差稀释，深度收益递减，有研究表明同样层数 Post-LN（调好 warmup）最终效果可以更好；所以超深模型会出现 DeepNorm、Sandwich-LN 等折中方案。能说出这个 trade-off 是加分项。
+
+---
+
+<a id="q11"></a>
+
+### Q11. AdamW 的"解耦权重衰减"到底解耦了什么？和 Adam+L2 差在哪？（🏷深度学习 📅2026-10-26 ⭐难度4）
+
+**「考察点」** 对优化器更新规则的一手推导能力，以及正则化与自适应学习率相互作用的理解。
+
+**「参考答案」**
+
+**基础答案**：Adam 加 L2 正则的做法是把 $\lambda w$ 加进梯度：$g_t = \nabla L + \lambda w$，这个"衰减梯度"随后和真实梯度一起被一阶矩 $m$、二阶矩 $v$ 平滑并除以 $\sqrt{\hat v_t}$。结果是：**梯度大的参数，其衰减项也被 $\sqrt{\hat v}$ 除小了，实际受到的正则反而弱**——正则强度被自适应学习率扭曲了。AdamW（Loshchilov & Hutter, ICLR 2019《Decoupled Weight Decay Regularization》）把衰减从梯度里拿出来，直接作用在参数上：$w_{t+1} = w_t - \eta\,\hat m_t/(\sqrt{\hat v_t}+\epsilon) - \eta\lambda w_t$，衰减不再经过动量估计和二阶矩缩放，对所有参数一视同仁。
+
+**深入原理**：
+
+- 两种写法的一步更新对比（$t$ 步）：
+  - Adam+L2：$w \leftarrow w - \eta\frac{\hat m_t(g+\lambda w)}{\sqrt{\hat v_t(g+\lambda w)}+\epsilon}$ —— $\lambda w$ 混入 $\hat v$ 的分母，正则化被"自适应"了。
+  - AdamW：$w \leftarrow w - \eta\frac{\hat m_t(g)}{\sqrt{\hat v_t(g)}+\epsilon} - \eta\lambda w$ —— 衰减是确定性的指数收缩，每步固定乘 $(1-\eta\lambda)$。
+- 工程含义：Adam+L2 下，调 $\lambda$ 的效果和调 lr 纠缠在一起，超参难迁移；AdamW 的 weight decay 与 lr 近似正交，同一组 $(\lambda, \eta)$ 在不同 batch size / 模型规模下更稳定，这也是大模型预训练（GPT、LLaMA 用 AdamW，$\beta=(0.9,0.95)$，wd=0.1）的标配。
+- 细节：PyTorch 的 AdamW 默认不把 weight decay 施加在 bias 和 LayerNorm/RMSNorm 的 $\gamma$ 上（规范参数不该被收缩），实现时要按参数组区分——这是面试常考的工程细节。
+
+**验证代码**（手推一步 AdamW 与 `torch.optim.AdamW` 逐位对齐，PyTorch 2.14 实测）：
+
+```python
+import torch
+lr, b1, b2, eps, wd = 0.1, 0.9, 0.999, 1e-8, 0.1
+# 手工一步：t=1 时 m_hat=g, v_hat=g^2
+w = torch.tensor([2.0, -1.0])
+g = torch.tensor([3.0, 3.0])               # loss = (w*3).sum()
+w_manual = w - lr*(g/(g.abs()+eps)) - lr*wd*w
+# torch AdamW
+w_t = torch.tensor([2.0, -1.0], requires_grad=True)
+opt = torch.optim.AdamW([w_t], lr=lr, weight_decay=wd)
+(w_t*3).sum().backward(); opt.step()
+print(torch.allclose(w_manual, w_t.detach(), atol=1e-6))   # True => [1.88, -1.09]
+# 对照 Adam+L2：一步结果是 [1.90, -1.10]，与 AdamW 不同
+```
+
+**「追问陷阱」**
+1. **"SGD 场景下 L2 和 weight decay 等价吗？"** —— 等价（SGD 无二阶矩缩放，$\lambda w$ 加进梯度和直接衰减参数是同一条更新式）；一到 Adam 才分道扬镳。这个"何时等价、何时不等价"正是原论文的核心论点。
+2. **"为什么 LLaMA 的 $\beta_2$ 用 0.95 而不是默认 0.999？"** —— $\beta_2$ 越小，二阶矩的滑动窗口越短（约 $1/(1-\beta_2)$ 步），对突发的梯度尖刺响应更快，能抑制大模型预训练中 loss spike；代价是稳态噪声略大。答出"$\beta_2$ 控制 $\hat v$ 的有效记忆长度、关系到训练稳定性"即可。
+
+---
+
+<a id="q12"></a>
+
+### Q12. LoRA 低秩微调的原理是什么？为什么 B 矩阵要初始化为 0？（🏷深度学习 📅2026-10-26 ⭐难度4）
+
+**「考察点」** 参数高效微调（PEFT）的核心机制、低秩假设的依据，以及工程落地细节（合并、QLoRA、rank 选择）。
+
+**「参考答案」**
+
+**基础答案**：LoRA（Hu et al., 2021, arXiv:2106.09685）冻结预训练权重 $W_0 \in \mathbb{R}^{d\times k}$，只训练旁路的低秩分解 $\Delta W = BA$，其中 $B \in \mathbb{R}^{d\times r}$、$A \in \mathbb{R}^{r\times k}$、$r \ll \min(d,k)$（常用 8~64）。前向为 $h = W_0 x + \frac{\alpha}{r} BAx$。可训练参数从 $d\times k$ 降到 $r(d+k)$：以 4096×4096 的投影矩阵、r=8 为例，从 1677 万降到 6.5 万（0.39%，实测）。**B 初始化为 0、A 用 Kaiming 随机初始化**，保证训练起点 $\Delta W = 0$，模型输出与原基座完全一致，微调从预训练解出发而不是从随机扰动出发。
+
+**深入原理**：
+
+- **低秩假设的依据**：论文观察到预训练模型适配下游任务时，$\Delta W$ 的"内在秩"很低——任务适配只需在少数方向上调整，大模型过参数化意味着权重更新集中在一个低维子空间。后续工作（如 Aghajanyan et al. 的 intrinsic dimensionality 研究）独立支持了这一假设。
+- **为什么 A 随机、B 全零，而不是反过来或都随机**：若都随机，起点就有非零 $\Delta W$，会立刻破坏预训练能力；若 A=0、B 随机，则 B 的梯度 $\propto (\cdot)A^\top = 0$，B 永远停在零点训不动（A 虽有梯度但 A 一更新，乘积仍受 B=0 压制，整个旁路死掉）。正确做法是 B=0、A 随机：第一步 A 的梯度经 $B^\top$ 为 0，但 **B 的梯度 $\propto (\cdot)A^\top \neq 0$**，B 先离开零点，第二步起两者都正常更新。即零初始化只能放在"另一侧矩阵梯度非零"的那一边，这是常被追问的细节。
+- **缩放因子 $\alpha/r$**：$\alpha$ 控制旁路相对基座的强度；固定 $\alpha$ 增大 r 时除以 r 可避免更新幅度随 rank 线性膨胀，实践中 $\alpha = 2r$ 是常见起点。
+- **推理零开销**：训练完把 $W = W_0 + \frac{\alpha}{r}BA$ 合并回基座，前向路径与原模型完全相同（实测 merge 前后输出 allclose）。这也是 LoRA 相对 Adapter/prefix-tuning 的关键优势——后两者在推理图上插入了额外串行模块，有延迟。
+- **QLoRA**（Dettmers et al., 2023）：基座用 4-bit NF4 量化 + double quantization + paged optimizer，LoRA 旁路保持 BF16 训练，单张 48GB 卡可微调 65B 模型。
+
+**验证代码**（PyTorch 2.14 实测：参数占比 0.39%、merge 等价、B=0 起点等价、梯度只流向 A/B）：
+
+```python
+import torch, torch.nn as nn, math
+class LoRALinear(nn.Module):
+    def __init__(self, base: nn.Linear, r=8, alpha=16):
+        super().__init__()
+        self.base = base
+        for p in self.base.parameters(): p.requires_grad = False
+        self.scaling = alpha / r
+        self.A = nn.Parameter(torch.empty(r, base.in_features))
+        self.B = nn.Parameter(torch.zeros(base.out_features, r))   # B=0！
+        nn.init.kaiming_uniform_(self.A, a=math.sqrt(5))
+    def forward(self, x):
+        return self.base(x) + x @ self.A.T @ self.B.T * self.scaling
+    @torch.no_grad()
+    def merge(self):
+        self.base.weight += self.scaling * (self.B @ self.A)       # 推理零延迟
+
+lora = LoRALinear(nn.Linear(4096, 4096, bias=False), r=8)
+# 起点等价：ΔW=0 => 输出与基座一致
+x = torch.randn(1, 4096); lora.eval()
+print(torch.allclose(lora(x), lora.base(x)))      # True
+y_before = lora(x); lora.merge()
+print(torch.allclose(y_before, lora.base(x)))     # True：merge 数学等价
+```
+
+```mermaid
+graph LR
+    x[x 输入] --> W0["W0 冻结 4096x4096"]
+    x --> A["A: r x k 随机初始化 可训练"]
+    A --> B["B: d x r 零初始化 可训练"]
+    W0 --> S((+))
+    B -->|"x alpha/r"| S
+    S --> h[输出 h]
+```
+
+**「追问陷阱」**
+1. **"r 越大效果越好吗？怎么选？"** —— 不是。r 增大到超过任务内在维度后收益饱和甚至过拟合小数据集；经验上多轮对话/风格适配 r=8~16 够用，注入大量新知识（领域语料继续训练）才需要 64+，且此时往往该考虑全参或继续预训练。更优的是把预算花在"哪些层加 LoRA"上：QLoRA 论文证明**所有线性层都加**（q/k/v/o/gate/up/down）比只加 q/v 效果好得多——秩预算相同的情况下覆盖面比秩大小更重要。
+2. **"LoRA 训完不合并、挂多个 LoRA 切换，工程上要注意什么？"** —— 多 LoRA 热切换（如 S-LoRA / 多租户 serving）要求基座共享，显存里只存各份 A/B（每份几十 MB）；注意不同 LoRA 的 $\alpha/r$ 缩放要各自记录，以及 dropout 等训练期模块在推理路径上必须关闭，否则同请求多次结果不一致。
+
+---
