@@ -1,5 +1,12 @@
 # 价格变动日志
 
+## 2026-10-26（每日核对）
+- 重新核对 30 行模型现价，全部来自官方一手源：platform.openai.com/docs/pricing、claude.com/pricing、ai.google.dev/gemini-api/docs/pricing、api-docs.deepseek.com/quick_start/pricing、docs.mistral.ai/inference/pricing、OpenRouter /api/v1/models、help.aliyun.com（qwen3-max 输入 ≤32K ¥2.5/M 经官方模型页快照确认；qwen3.5-plus ¥0.8/¥4.8、qwen-long 无调价公告）。**与 10-25 基线完全一致，零变动。**
+- 在途优惠核实仍有效：GPT-5.6 Sol 促销 $4/$20（官方页明示至少至 2026-11-21）、Gemini 4 Argon 首发价 $2/$10（至 11-30，12-01 起 $4/$20）、Gemini 3.8 Flash $0.75/$3.75（至 12-31）、DeepSeek Search/Fetch 免费（至 11-01 北京时间 00:00 / 10-31 16:00 UTC 起 $0.75/千次）。
+- 近 7 天新闻扫描（benchlm/thedecoded/aitokenprice/computeprices 等追踪站）：无新的主流模型官方降价 ≥20%、无新免费层、无新限时折扣。追踪站记录的近期变动（DeepSeek V4 Flash 0423 -68%、GLM 5.1 +37.7%，均 10-13）为渠道/旧快照价，非本板基线一手价，此前已收录或不适用。
+- ℹ️ OpenAI 定价页观察到新条目（非基线模型，仅记录）：gpt-5.6-cyber（$12.50/$75，"Cyber models" 分类）与 gpt-rosalind-research/discovery（$5/$25，生命科学受限访问，10-05 起计费）。另 OpenAI 10-23 已在 API 关停 o1 与 gpt-4o 初版快照（不在板内）。
+- ℹ️ Google Gemini API 免费层收缩已于 10-09 生效（免费用户仅 Flash Lite，Flash/Pro 需 Google AI Plus $4.99/月订阅）——超 7 天窗口且此前已反映，仅备忘。
+
 ## 2026-10-25（每日核对）
 - 重新核对 30 行模型现价（OpenAI 官方定价页+platform 定价表、docs.claude.com、ai.google.dev、api-docs.deepseek.com、docs.mistral.ai、OpenRouter API、阿里云百炼经 developer.aliyun.com 汇总）：**全部与 10-24 基线一致，零变动**。Qwen 三行今日已重新核对（Qwen3-Max ¥2.5/¥10、Qwen3.5-Plus ¥0.8/¥4.8、Qwen-Long ¥0.5/¥2 不变）。
 - 在途优惠核实仍有效：GPT-5.6 Sol 促销 $4/$20（至少至 11-21）、Gemini 4 Argon 首发价 $2/$10（至 11-30）、Gemini 3.8 Flash $0.75/$3.75（至 12-31）、DeepSeek Search/Fetch 免费（至 11-01 北京时间）。
