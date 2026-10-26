@@ -28,7 +28,7 @@
 ![Anthropic S-1](assets/2026-10-27/anthropic-s1.jpg)
 *图：Anthropic 官方 S-1 公告配图（图源：[anthropic.com/news/s1-sec](https://www.anthropic.com/news/s1-sec)）*
 
-[来源：Anthropic 官方公告](https://www.anthropic.com/news/s1-sec) · [SEC S-1 原文](https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm) · [CNBC 实时解读](https://www.cnbc.com/2026-10-26/anthropic-ipo-live-updates-ai-s-1-filing.html) · [Yahoo Finance](https://finance.yahoo.com/technology/live/anthropic-ipo-live-updates-frontier-ai-lab-discloses-revenue-and-risks-in-highly-anticipated-s-1-filing-141702607.html)
+[来源：Anthropic 官方公告](https://www.anthropic.com/news/s1-sec) · [SEC S-1 原文](https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm) · [CNBC 实时解读](https://www.cnbc.com/2026/10/26/anthropic-ipo-live-updates-ai-s-1-filing.html) · [Yahoo Finance](https://finance.yahoo.com/technology/live/anthropic-ipo-live-updates-frontier-ai-lab-discloses-revenue-and-risks-in-highly-anticipated-s-1-filing-141702607.html)
 
 ### 📰 要闻简报
 
@@ -97,8 +97,8 @@ flowchart LR
 ### 📰 要闻简报
 
 - **Oracle 十月 CPU 全线更新**：JDK 27.0.1 / 25.0.5 / 21.0.13 / 17.0.21 / 11.0.33 / 8u511 同步发布；Azul Zulu、BellSoft Liberica 等下游发行版当日跟进。上周披露的 eMudhra 中间 CA 私钥泄露（CVE-2026-91403，CVSS 9.1）仍需单独更新信任库。[来源](https://www.oracle.com/security-alerts/cpuoct2026.html) · [InfoQ 汇总](https://www.infoq.com/news/2026/10/java-news-roundup-oct19-2026/)
-- **Micronaut 5.2.3**：一口气修掉 Micronaut Core 5.2.17 + Security 5.4.1 里的 **10 个 CVE**，用 Micronaut 的直接升级。[来源](https://micronaut.io/2026-10-20/micronaut-framework-5-2-3/)
-- **Open Liberty 26.0.0.11 beta**：JWT Builder 支持 workload identity 与 JWK 轮换，签发出的 JWT 可标识生成方工作负载——微服务间零信任身份的新积木。[来源](https://openliberty.io/blog/2026-10-20/26.0.0.11-beta.html)
+- **Micronaut 5.2.3**：一口气修掉 Micronaut Core 5.2.17 + Security 5.4.1 里的 **10 个 CVE**，用 Micronaut 的直接升级。[来源](https://micronaut.io/2026/10/20/micronaut-framework-5-2-3/)
+- **Open Liberty 26.0.0.11 beta**：JWT Builder 支持 workload identity 与 JWK 轮换，签发出的 JWT 可标识生成方工作负载——微服务间零信任身份的新积木。[来源](https://openliberty.io/blog/2026/10/20/26.0.0.11-beta.html)
 - **AmiJa：Java 写的周期精确 Amiga 模拟器**登上 HN 首页——JVM 上做 cycle-exact 硬件模拟的极限样本，也是「Java 不只是企业语言」的周末读物。[来源](https://www.reddit.com/r/amiga/comments/1xftc5s/amija_amiga_emulator_in_java/)
 
 ---
