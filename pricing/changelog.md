@@ -1,5 +1,12 @@
 # 价格变动日志
 
+## 2026-10-27（每日核对）
+- 重新核对 30 行模型现价，全部官方一手源：platform.openai.com/docs/pricing（.md 版）、docs.claude.com/en/docs/about-claude/pricing、ai.google.dev/gemini-api/docs/pricing（HTML 全文解析）、api-docs.deepseek.com/quick_start/pricing、docs.mistral.ai/inference/pricing、OpenRouter /api/v1/models、阿里百炼（经 pricemon/dayuyun 等汇总交叉核对 qwen3-max ¥2.5/¥10、qwen3.5-plus ¥0.8/¥4.8、qwen-long ¥0.5/¥2 无调价公告）。**与 10-26 基线完全一致，零变动。**
+- 在途优惠核实仍有效：GPT-5.6 Sol 促销 $4/$20（官方页明示至少至 2026-11-21）、Gemini 4 Argon 首发价 $2/$10（至 11-30，12-01 起 $4/$20）、Gemini 3.8 Flash $0.75/$3.75（至 12-31）、DeepSeek Search/Fetch 免费（⚠️ 仅剩 5 天：11-01 北京时间 00:00 起 $0.75/千次）。
+- ℹ️ Anthropic 定价页观察到新条目（非基线模型，仅记录）：Claude Mythos 5.1 / Mythos 5（$10/$50，缓存读 0.025x）；新增 "Claude Managed Agents" 计费——会话运行时 $0.08/会话小时（按 running 状态毫秒级计量，idle 不计费），且 Managed Agents 会话不适用 Batch 折扣。
+- ℹ️ OpenAI 定价页 gpt-5.6-cyber（$12.50/$75）与 gpt-rosalind（$5/$25）条目仍在，无变化。
+- 近 7 天新闻扫描（tokenbarometer/sovyron/aitokenprice/stackspend 等追踪站 + 关键词检索）：无新的主流模型官方降价 ≥20%、无新免费层、无新限时折扣。检索到的 "OpenAI/Anthropic slash prices up to 80%" 类文章（lavx.hu 10-26、emergent.sh 10-26）均为对 6-10 月既有降价（GPT-5.6 Luna -80%、GPT-6 系 -50%、Opus 5.5 -20%）的回顾汇编，非新事件，已反映在本板基线中。追踪站近 7 天记录的变动（kimi-k3 wafer 输出 -14%、qwen3-6-27b chutes 输入 -17%、titan-text-lite bedrock -50% 等）均为渠道/非基线模型，不触发快报。
+
 ## 2026-10-26（每日核对）
 - 重新核对 30 行模型现价，全部来自官方一手源：platform.openai.com/docs/pricing、claude.com/pricing、ai.google.dev/gemini-api/docs/pricing、api-docs.deepseek.com/quick_start/pricing、docs.mistral.ai/inference/pricing、OpenRouter /api/v1/models、help.aliyun.com（qwen3-max 输入 ≤32K ¥2.5/M 经官方模型页快照确认；qwen3.5-plus ¥0.8/¥4.8、qwen-long 无调价公告）。**与 10-25 基线完全一致，零变动。**
 - 在途优惠核实仍有效：GPT-5.6 Sol 促销 $4/$20（官方页明示至少至 2026-11-21）、Gemini 4 Argon 首发价 $2/$10（至 11-30，12-01 起 $4/$20）、Gemini 3.8 Flash $0.75/$3.75（至 12-31）、DeepSeek Search/Fetch 免费（至 11-01 北京时间 00:00 / 10-31 16:00 UTC 起 $0.75/千次）。
