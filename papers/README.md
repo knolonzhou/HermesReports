@@ -8,3 +8,4 @@
 | 2026-10-24 | [PaSa: An LLM Agent for Comprehensive Academic Paper Search](2026-10-24-pasa-paper-search-agent.md) | ACL 2025 Main · 开源项目+论文对照（bytedance/pasa） | 学术搜索 Agent、RL/PPO、Deep Research |
 | 2026-10-25 | [G-Memory: Tracing Hierarchical Memory for Multi-Agent Systems](2026-10-25-gmemory-hierarchical-mas-memory.md) | NeurIPS 2025 Spotlight · 开源项目+论文对照（bingreeky/GMemory） | 多智能体记忆、三层图、自进化 MAS |
 | 2026-10-26 | [WeVisOne-VL: Unified Visual Perception from Objects to Pixels](2026-10-26-wevisone-vl-unified-perception.md) | arXiv 2610.31329 · HF Daily Papers 10-23 榜首 · 开源项目+论文对照（Tencent/WeVisOne-VL） | 统一视觉感知、VLM 分割/抠图、拒答 None、GRPO |
+| 2026-10-27 | [UserArena + OPTD: 购物用户模拟基准与轨迹蒸馏](2026-10-27-userarena-optd-shopping-user-simulator.md) | arXiv 2610.30932 · HF Daily Papers 10-26 榜首 · 开源项目+论文对照（RecGPT-Team/UserArena） | 用户模拟器、五级评测、生产 A/B 校验、on-policy 蒸馏 |
