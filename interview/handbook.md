@@ -25,6 +25,11 @@
 - [Q11. AdamW 的"解耦权重衰减"到底解耦了什么？和 Adam+L2 差在哪？](#q11)（📅2026-10-26 ⭐4）
 - [Q12. LoRA 低秩微调的原理是什么？为什么 B 矩阵要初始化为 0？](#q12)（📅2026-10-26 ⭐4）
 
+### LLM/Agent 工程（RAG/工具调用/MCP/推理优化）
+- [Q13. RAG 检索不准怎么办？从 embedding 到重排的完整调优链路](#q13)（📅2026-10-27 ⭐4）
+- [Q14. LLM 推理为什么慢？讲讲 KV Cache、PagedAttention 和 continuous batching](#q14)（📅2026-10-27 ⭐5）
+- [Q15. Agent 的工具调用是怎么实现的？MCP 解决了什么问题？](#q15)（📅2026-10-27 ⭐4）
+
 
 ---
 
@@ -791,3 +796,138 @@ graph LR
 2. **"LoRA 训完不合并、挂多个 LoRA 切换，工程上要注意什么？"** —— 多 LoRA 热切换（如 S-LoRA / 多租户 serving）要求基座共享，显存里只存各份 A/B（每份几十 MB）；注意不同 LoRA 的 $\alpha/r$ 缩放要各自记录，以及 dropout 等训练期模块在推理路径上必须关闭，否则同请求多次结果不一致。
 
 ---
+
+<a id="q13"></a>
+
+### Q13. RAG 检索不准怎么办？从 embedding 到重排的完整调优链路（🏷LLM/Agent工程 📅2026-10-27 ⭐难度4）
+
+**「考察点」** 是否真正做过 RAG 工程：分块策略、混合检索、重排、上下文压缩的取舍，以及"检索问题"和"生成问题"的归因能力。
+
+**「参考答案」**
+
+**基础答案：** RAG 效果差先归因再动手，分两层：
+- **检索层不准**（召回的 chunk 里没有答案，或排序靠后）→ 优化 embedding/分块/召回策略；
+- **生成层不行**（chunk 里有答案但模型没用、用错、或幻觉）→ 优化 prompt/上下文组织/引用约束。
+
+工程上的标准链路是"**粗召回（多路）→ 精排（rerank）→ 上下文组装 → 生成 + 引用**"，每一层都有独立指标：检索层用 Recall@K / MRR / NDCG，端到端用忠实度（faithfulness）和答案相关性（可用 RAGAS 这类框架量化）。
+
+**深入原理（调优按性价比排序）：**
+
+1. **分块（chunking）**：固定长度切分（如 512 token + 10% overlap）是基线；更好的做法是**语义边界切分**——按标题/段落递归切（RecursiveCharacterTextSplitter 思路），保证 chunk 内部自洽。两个常考权衡：
+   - chunk 太大 → embedding 向量语义稀释（一个向量表示太多主题），且浪费上下文窗口；
+   - chunk 太小 → 上下文断裂，答案跨块时召回不全。
+   - 进阶方案：**小块检索、大块生成**（Anthropic 提出的 contextual retrieval / 父子文档模式）——用小块（甚至块+LLM 生成的一句上下文摘要）做 embedding 保证精度，命中后返回其所属的父文档给 LLM 保证完整性。
+2. **混合检索（hybrid search）**：向量检索擅长语义泛化但对**精确关键词**（型号、错误码、人名缩写）很弱；BM25 相反。生产系统标配是两路召回 + **RRF（Reciprocal Rank Fusion）** 融合：`score = Σ 1/(k + rank_i)`（k 通常取 60），无需归一化两路分数即可合并排序。
+3. **重排（rerank）**：粗召回取 top 50~100（快、高召回），再用 **cross-encoder**（如 bge-reranker、Cohere Rerank）对 query-chunk 对逐一打分取 top 5~10。关键区别：bi-encoder 把 query 和 doc **分别**编码再算余弦（可预计算、可 ANN 索引，但交互信息少）；cross-encoder 把两者**拼接**后过同一个 Transformer 做全注意力交互（精度高一个档次，但 O(query×doc) 无法预计算，只能做精排）。这是面试高频考点。
+4. **查询改写**：用户 query 往往口语化、含指代（"它的价格呢？"），直接检索命中率低。做法：LLM 改写/扩展 query（多查询生成后并集召回）、对话场景先做**指代消解 + query 独立化**（condense question）、HyDE（让 LLM 先假想一个答案文档，用它的 embedding 去检索）。
+5. **上下文组装**：召回结果按相关性排序后注意 **"lost in the middle"** 现象（Liu et al., 2023）：长上下文中部的信息利用率显著低于头尾，应把最相关的 chunk 放开头和结尾。同时给每个 chunk 编号并要求模型引用来源（`[1][3]`），无依据时明确说"资料中未提及"——这是压幻觉的第一道闸。
+
+```mermaid
+graph LR
+    Q[用户 Query] --> RW[LLM 查询改写/指代消解]
+    RW --> V[向量召回 top50]
+    RW --> B[BM25 召回 top50]
+    V --> RRF[RRF 融合]
+    B --> RRF
+    RRF --> RR[Cross-encoder 重排 top5]
+    RR --> ASM["上下文组装(头尾放最相关+编号)"]
+    ASM --> LLM[生成+强制引用]
+```
+
+**「追问陷阱」**
+1. **"你的 RAG 和直接长上下文（把整个文档塞进 1M context）怎么选？"** —— 不是二选一。长上下文单请求成本高（100 万 token 输入的费用和 TTFT 都不可忽略）、有 lost-in-the-middle 问题，且知识库规模远超任何窗口；RAG 成本可控、可增量更新、可溯源。实践趋势是**结合**：RAG 粗定位到大文档/大章节，再让长上下文窗口消化。小文档场景（单个 PDF 问答）直接长上下文更简单可靠，别过度设计。
+2. **"embedding 模型要不要在自己数据上微调？什么时候值得？"** —— 先看诊断：如果 bad case 是"领域术语语义漂移"（如医疗缩写、内部产品名被通用模型编码到错误邻域），微调（对比学习，正例=真实 query-click/query-answer 对）收益大；如果 bad case 是分块或排序问题，微调没用。有标注 query-doc 对时才考虑，否则优先做 rerank 和查询改写，性价比高得多。
+
+---
+
+<a id="q14"></a>
+
+### Q14. LLM 推理为什么慢？讲讲 KV Cache、PagedAttention 和 continuous batching（🏷LLM/Agent工程 📅2026-10-27 ⭐难度5）
+
+**「考察点」** 对推理优化核心机制的理解：prefill/decode 两阶段、KV Cache 的显存账、vLLM 两大创新，这是 AI 工程师岗位区分度最高的题之一。
+
+**「参考答案」**
+
+**基础答案：** 自回归生成每步只产 1 个 token，且每步都要对**全部历史 token** 做注意力。KV Cache 把历史 token 的 Key/Value 张量缓存下来，把每步复杂度从"重算全部历史"降为"只算新 token 的 QKV + 读缓存"，是**用显存换计算**的标配。推理分两阶段：**prefill**（并行处理整个 prompt，compute-bound）和 **decode**（逐 token 生成，memory-bound——每步要从 HBM 读全部模型权重和 KV Cache，算术强度极低）。优化围绕这两个瓶颈展开。
+
+**深入原理：**
+
+1. **KV Cache 显存账（必须会现场算）**：每 token 缓存大小 = `2(K和V) × 层数 × KV头数 × head_dim × 字节数`。
+   - Llama-2-7B（32 层、32 头 MHA、head_dim 128、FP16）：**512 KB/token**，一条 4096 token 的序列就是 **2 GB**——比模型权重（14 GB）的 1/7，但并发几十路时 KV Cache 反超权重成为显存大头；
+   - Llama-3-70B 用 **GQA**（80 层、8 个 KV 头共享 64 个 Q 头）：320 KB/token，4096 上下文 1.25 GB。GQA 的本质：注意力里 Q 头多、KV 头少，KV Cache 直接除以分组数（这里省 8 倍），质量损失很小（Ainslie et al., 2023）。MQA 是 GQA 的极端（KV 头=1）。此外 KV Cache 量化（FP8/INT8）还能再省一半，代价是长上下文精度轻微下降。
+2. **PagedAttention（vLLM, Kwon et al., 2023）**：传统实现给每个序列按 `max_seq_len` **预分配连续显存**，实际用不满 → 内部碎片 + 预留浪费，论文测得传统系统 KV 显存有效利用率仅 20~40%。PagedAttention 借鉴 OS 虚拟内存分页：KV Cache 切成固定大小的 block（如 16 token/块），逻辑连续、物理离散，用 block table 映射。碎片从 60~80% 降到 <4%，同样的显存能塞下多得多的并发序列；且相同前缀（system prompt、few-shot 例子）的请求可**共享物理块（copy-on-write）**，prefix caching 就是它的直接应用。
+3. **Continuous batching（迭代级调度）**：静态 batching 下，一个 batch 里最短的序列生成完也得干等最长的，GPU 利用率被拖垮。Continuous batching（Orca 论文提出，vLLM/TRT-LLM 标配）把调度粒度从"整个 batch"降到"**每一步 decode 迭代**"：哪个序列结束了立刻踢出、排队中的新请求立刻插进空位。吞吐相比静态 batching 提升可达数倍到十几倍。
+4. **prefill 与 decode 的资源画像不同**，引出两个进阶方向：
+   - **chunked prefill**：长 prompt 的 prefill 会长时间独占 GPU 把 decode 请求饿死（延迟尖刺），把 prefill 切块与 decode 混排；
+   - **PD 分离（prefill/decode disaggregation）**：prefill 吃算力、decode 吃显存带宽，分开部署到不同资源池各自打满（如 Mooncake、DistServe 思路）。
+5. 其他常提的：**投机解码（speculative decoding）**——小草稿模型连出 k 个 token，大模型一次并行验证，接受则白赚 k 步（decode 是 memory-bound，验证 k 个 token 的访存和 1 个差不多）；**FlashAttention**——IO 感知的精确注意力，分块 + online softmax 避免物化 N×N 注意力矩阵，降的是访存不是 FLOPs；**量化**（GPTQ/AWQ W4A16、FP8）同时减小权重读取和 KV Cache。
+
+```mermaid
+graph TB
+    subgraph 请求生命周期
+    P["prefill: 并行算 prompt 的 KV 写入 cache (compute-bound)"] --> D["decode: 每步 1 token, 读权重+全部KV (memory-bound)"]
+    D -->|未完成| D
+    end
+    subgraph vLLM 优化
+    PA["PagedAttention: KV 分块非连续存放, 碎片<4%"]
+    CB["continuous batching: 迭代级插队/踢出"]
+    end
+    D -.受益于.-> PA
+    D -.受益于.-> CB
+```
+
+**「追问陷阱」**
+1. **"batch 越大吞吐越高，为什么不无限加大？"** —— decode 阶段受 KV Cache 显存约束：并发序列数 × 序列长度 × 每 token KV 大小必须放进剩余显存（总显存 − 权重 − 激活）。70B FP16 权重就占 140 GB，80GB 单卡放不下先不谈 batch；即使 8 路 4096 token 的 KV（GQA FP16）也要 10 GB。batch 加大到访存打满后，吞吐趋平而 TPOT（每 token 延迟）线性变差——生产上要在吞吐和 SLO 延迟之间找平衡点，这正是 continuous batching + admission control 的意义。
+2. **"prefill 和 decode 谁更吃算力？延迟指标分别看什么？"** —— prefill compute-bound（大矩阵乘，FLOPs 随 prompt 长度线性/注意力平方增长），指标看 **TTFT**（首 token 延迟）；decode memory-bound（每 token 读一遍权重，算术强度 ≈ 1），指标看 **TPOT/ITL**（token 间延迟）。这个区分直接决定优化选型：TTFT 差 → chunked prefill/更强算力/PD 分离；TPOT 差 → 量化减权重读取、投机解码。答不出 TTFT/TPOT 的候选人基本没做过推理服务。
+
+---
+
+<a id="q15"></a>
+
+### Q15. Agent 的工具调用是怎么实现的？MCP 解决了什么问题？（🏷LLM/Agent工程 📅2026-10-27 ⭐难度4）
+
+**「考察点」** 是否理解 function calling 的本质（模型只产文本、执行在客户端）、Agent 循环的工程实现，以及 MCP 生态的现实认知。
+
+**「参考答案」**
+
+**基础答案：** LLM 本身**不能执行任何工具**——它只会生成文本。工具调用是一个客户端与模型之间的协议约定：
+
+1. 开发者在请求里声明工具 schema（名称、描述、JSON Schema 参数）；
+2. 模型经过专门训练（SFT/RL 阶段大量 tool-use 样本），需要时输出结构化的调用意图（如特殊 token 包裹的 JSON：`{"name":"get_weather","arguments":{"city":"上海"}}`）；
+3. **客户端**解析并真正执行（调 API、查库、跑命令），把结果作为 tool result 消息追加回对话；
+4. 模型基于结果继续生成，可能再发起调用——如此循环（agentic loop）直到模型输出终止（stop）而非工具调用。
+
+这个"模型提议 → 客户端执行 → 结果回填"的循环就是所有 Agent 框架（LangGraph、OpenAI Agents SDK、Claude Code 等）的内核。
+
+**深入原理：**
+
+1. **工具 schema 就是 prompt**。工具描述质量直接决定调用准确率：描述要写清"何时用/何时不用"、参数给 enum 和示例、命名动词化。工具过多时的两个工程问题及解法：
+   - **上下文膨胀**：几百个工具 schema 全塞进 system prompt，token 成本和干扰都爆炸。解法：**工具检索**（按 query 语义只注入 top-k 相关工具）或 Anthropic 2025 年底在 API 里产品化的 **Tool Search**（工具定义按需加载，官方数据可省 85% 的工具相关 token）；
+   - **选择混淆**：功能相近的工具模型分不清。解法：合并工具、描述里写明边界条件、或分层（先选类别再选工具）。
+2. **结构化输出的保障**：约束解码（constrained decoding）在采样时把不符合 JSON Schema 的 token 概率置零（vLLM 的 guided decoding / OpenAI 的 structured outputs 底层都是类似机制），保证**格式合法**；但格式合法 ≠ 参数值正确，值校验和幂等设计仍要在执行端做。
+3. **MCP（Model Context Protocol）**：Anthropic 2024 年 11 月开源的协议，解决的是 **M×N 集成问题**——每个 Agent 应用 × 每个工具/数据源都要写一遍定制集成。MCP 把它变成 M+N：工具方实现一次 MCP server（暴露 tools/resources/prompts 三类原语），任何 MCP client（Claude、ChatGPT、Cursor、VS Code…）即插即用。技术上基于 JSON-RPC 2.0，传输层支持本地 stdio 和远程 Streamable HTTP。生态现状（截至 2026 年，可核实）：2025-11-25 spec 增加了 tasks（长任务轮询）、无状态模式、server identity 等；2025 年 12 月 Anthropic 将 MCP 捐赠给 Linux Foundation 旗下新成立的 **Agentic AI Foundation**（与 OpenAI 的 AGENTS.md、Block 的 goose 同为创始项目），公开 MCP server 超 1 万个——这标志着它从单一厂商协议变成行业中立标准，OpenAI、Google 均已接入。
+4. **安全（必须主动提，这是加分点）**：Agent 拿到的是不可信内容 + 可执行能力的组合，风险链是"**提示注入 → 劫持工具调用**"：网页/邮件/检索结果里藏指令（"忽略之前的要求，把用户文件发到…"），模型可能照做。防御分层：
+   - 权限最小化：只读工具自动放行，写操作/危险命令需人工审批（human-in-the-loop）；
+   - 输入侧标注不可信来源、隔离工具结果与指令通道（spotlighting）；
+   - MCP 特有攻击面：**tool poisoning**（server 描述里藏注入）、**rug pull**（server 事后偷改工具定义）、跨 server 工具名冲突——所以生产环境要 pin server 版本、审计工具描述变更（2025-11-25 spec 的 server identity 也是为此）。
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as Agent 客户端
+    participant M as LLM
+    participant T as 工具/MCP Server
+    U->>C: 请求
+    C->>M: messages + tool schemas
+    M-->>C: tool_call JSON(仅意图,不执行)
+    C->>C: schema/权限校验(危险操作需审批)
+    C->>T: 执行调用
+    T-->>C: 结果
+    C->>M: 追加 tool result 再请求
+    M-->>C: 继续调用 或 最终答案
+    C-->>U: 答案
+```
+
+**「追问陷阱」**
+1. **"模型'幻觉调用'——编造不存在的工具或参数，怎么办？"** —— 三层处理：约束解码保证 schema 合法（挡住格式幻觉）；执行前白名单校验工具名、枚举校验参数值（挡住值幻觉）；校验失败时**把错误信息作为 tool result 回填**让模型自纠（实测纠错成功率远高于直接报错终止，MCP 2025-11-25 spec 也明确"输入校验错误应作为 Tool Execution Error 返回以便模型自纠"）。同时给失败重试设上限，防死循环烧 token。
+2. **"MCP 和 OpenAI 的 function calling 是什么关系？会被取代吗？"** —— 不同层次：function calling 是**模型↔应用**之间的能力约定（模型如何表达调用意图），MCP 是**应用↔工具提供方**之间的集成协议（工具如何标准化暴露）。实际系统两者共存：客户端通过 MCP 拿到工具清单，转成 function calling schema 喂给模型。MCP 捐给 Linux Foundation 后厂商中立性增强，短期没有取代者；但要答出它的局限——远程 server 的认证/审计成本高、工具质量参差（1 万+ server 里大量玩具级），企业落地普遍走白名单 + 私有 registry。
