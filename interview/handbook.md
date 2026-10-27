@@ -10,6 +10,11 @@
 - [Q2. @Transactional 有哪些失效场景？底层原理是什么？](#q2)（📅2026-10-23 ⭐4）
 - [Q3. Spring Boot 自动装配的原理是什么？如何自定义一个 Starter？](#q3)（📅2026-10-23 ⭐3）
 
+### JVM（内存模型/GC/类加载/JIT）
+- [Q16. 对象一定分配在堆上吗？讲讲逃逸分析、标量替换和 TLAB](#q16)（📅2026-10-28 ⭐4）
+- [Q17. G1 和 ZGC 分别怎么做到低停顿？SATB 与染色指针解决什么问题？](#q17)（📅2026-10-28 ⭐5）
+- [Q18. 双亲委派模型为什么存在？哪些场景必须打破它？](#q18)（📅2026-10-28 ⭐4）
+
 ### 算法·LeetCode 高频题
 - [Q4. 无重复字符的最长子串（LC3）](#q4)（📅2026-10-24 ⭐3）
 - [Q5. 数组中的第K个最大元素（LC215）](#q5)（📅2026-10-24 ⭐3）
@@ -931,3 +936,108 @@ sequenceDiagram
 **「追问陷阱」**
 1. **"模型'幻觉调用'——编造不存在的工具或参数，怎么办？"** —— 三层处理：约束解码保证 schema 合法（挡住格式幻觉）；执行前白名单校验工具名、枚举校验参数值（挡住值幻觉）；校验失败时**把错误信息作为 tool result 回填**让模型自纠（实测纠错成功率远高于直接报错终止，MCP 2025-11-25 spec 也明确"输入校验错误应作为 Tool Execution Error 返回以便模型自纠"）。同时给失败重试设上限，防死循环烧 token。
 2. **"MCP 和 OpenAI 的 function calling 是什么关系？会被取代吗？"** —— 不同层次：function calling 是**模型↔应用**之间的能力约定（模型如何表达调用意图），MCP 是**应用↔工具提供方**之间的集成协议（工具如何标准化暴露）。实际系统两者共存：客户端通过 MCP 拿到工具清单，转成 function calling schema 喂给模型。MCP 捐给 Linux Foundation 后厂商中立性增强，短期没有取代者；但要答出它的局限——远程 server 的认证/审计成本高、工具质量参差（1 万+ server 里大量玩具级），企业落地普遍走白名单 + 私有 registry。
+
+---
+
+<a id="q16"></a>
+
+### Q16. 对象一定分配在堆上吗？讲讲逃逸分析、标量替换和 TLAB（🏷JVM 📅2026-10-28 ⭐难度4）
+
+**「考察点」** 是否理解 HotSpot 对象分配的完整链路——从字节码 `new` 到 TLAB 快速路径，再到 JIT 逃逸分析带来的栈上分配/标量替换优化。
+
+**「参考答案」**
+
+**基础答案**：不一定。概念上 Java 对象都在堆中分配，但 HotSpot 的 JIT 编译器（C2）会做**逃逸分析（Escape Analysis）**：若一个对象不会逃出方法/线程（不被外部引用、不返回、不作为参数传给不可见方法），就可能被优化掉堆分配——通过**标量替换**把对象拆散成若干局部变量直接放进寄存器/栈帧；另外所有线程的堆分配默认走 **TLAB（Thread-Local Allocation Buffer）**，在 Eden 中预分一块线程私有缓冲区，避免每次分配都竞争堆指针。
+
+**深入原理**：
+
+1. **分配的两条路径**。`new` 指令触发 `fast_alloc`：若当前线程 TLAB 剩余空间够，仅做一次**指针碰撞（bump the pointer）**并更新 TLAB top，无任何锁；不够则申请新 TLAB（需同步）或直接慢路径在 Eden 分配（CAS + 失败重试）。TLAB 大小由 `-XX:TLABSize` / 自适应策略决定（`-XX:+ResizeTLAB` 默认开），太小会频繁 refill，太大会浪费（线程退出时剩余空间作废）。逃逸分析开关 `-XX:+DoEscapeAnalysis`（JDK 6u23 起默认开启）、标量替换 `-XX:+EliminateAllocations`（默认开）。
+2. **逃逸的三级分类**：`NoEscape`（可标量替换）→ `ArgEscape`（作为参数传给可见方法但不被存储到堆，可消除同步但不做标量替换）→ `GlobalEscape`（赋给静态变量/堆对象字段，只能老实堆分配）。
+3. **注意措辞**：HotSpot 并没有真正的"栈上分配对象"实现（Go 有），它做的是标量替换——对象本身"消失"了，字段变成独立局部量。所以 `System.identityHashCode()`、`synchronized(obj)` 这类需要对象头/一致身份的操作会**阻止**标量替换。
+4. **大对象旁路**：超过 `-XX:PretenureSizeThreshold`（Serial/ParNew 有效）或 G1 中超过 Region 一半的大对象直接进老年代/Humongous Region，不走 TLAB（TLAB 装不下）。
+
+**短代码**（演示逃逸分析消除分配，`-XX:+PrintEliminateAllocations` 需 debug JDK，可用 JMH 对比）：
+
+```java
+static Point sum(int n) {           // Point 不逃逸
+    Point acc = new Point(0, 0);    // C2 标量替换：无堆分配
+    for (int i = 0; i < n; i++) {
+        acc = new Point(acc.x + i, acc.y + i); // 全部拆成寄存器变量
+    }
+    return acc;                     // 返回值逃逸 → 仅此处真正分配
+}
+```
+
+**「追问陷阱」**
+1. **"逃逸分析在解释执行阶段生效吗？"** —— 不。HotSpot 的 EA 只在 **C2（及 Graal）编译期**做，C1 不做完整逃逸分析；所以未触发 JIT 前（冷启动、解释模式）对象都走堆分配。这也是压测要先预热的理由之一。
+2. **"TLAB 会不会造成内存碎片/浪费？"** —— 会。每个 TLAB 尾部剩余空间在 refill 时若放不下新对象就被浪费（统计在 `TLAB waste`，`-XX:+PrintTLAB` 可观测）；JVM 用自适应 TLAB 大小 + 浪费率阈值（`-XX:TLABWasteTargetPercent`）控制。分配本身仍是指针碰撞，堆的整体规整性不受影响。
+
+---
+
+<a id="q17"></a>
+
+### Q17. G1 和 ZGC 分别怎么做到低停顿？SATB 与染色指针解决什么问题？（🏷JVM 📅2026-10-28 ⭐难度5）
+
+**「考察点」** 是否理解并发 GC 的核心矛盾——"标记期间对象图还在变"（漏标问题），以及 G1/ZGC 两代低停顿收集器各自的技术路线差异。
+
+**「参考答案」**
+
+**基础答案**：G1 把堆切成等大 Region（默认 2048 个，1~32MB），通过**可预测停顿模型**（`-XX:MaxGCPauseMillis`，默认 200ms）每次只回收"垃圾收益最高"的一批 Region（Garbage First 名字由来），年轻代 STW、老年代并发标记 + Mixed GC 分批回收。ZGC 更进一步：除极短的根扫描/重定位暂停外几乎全程并发，**停顿不随堆大小增长**（TB 级堆仍 <1ms，现代版本典型亚毫秒级），代价是需要染色指针 + 读屏障。
+
+**深入原理**：
+
+1. **并发标记的漏标问题**。三色标记（白/灰/黑）中，若用户线程把"黑对象 → 白对象"加了引用、同时删了"灰对象 → 白对象"的引用，白对象会被漏标清除。破坏其一即可保证正确：
+   - **SATB（Snapshot-At-The-Beginning）**：G1/CMS 采用——按"标记开始那一刻的对象图快照"来标，**引用被删除时**通过写前屏障（pre-write barrier）把旧引用记入 SATB 队列再处理。保证不漏标，代价是产生**浮动垃圾**（快照后新死的对象本轮回收不掉）。
+   - **增量更新（Incremental Update）**：CMS 另一种思路，记录"黑→白"的**新增引用**（写后屏障），remark 阶段重新扫描变黑的对象。
+2. **G1 的停顿控制**。并发标记周期（initial mark→root scan→concurrent mark→remark(SATB 队列处理, STW)→cleanup）后，Mixed GC 每轮挑一部分老年代 Region 和全部年轻代一起 STW 拷贝回收，用 `-XX:G1MixedGCCountTarget`（默认 8 轮）分摊；Region 间拷贝即整理，基本无碎片。回收依赖 **RSet（Remembered Set）** 记录跨 Region 引用，避免全堆扫描——RSet 本身是 G1 内存开销大头（可占堆 1%~10%+）。
+3. **ZGC 染色指针 + 读屏障**。ZGC 把 GC 元数据直接存在 64 位指针的高位（Marked0/Marked1/Remapped/Finalizable 位），配合 **load barrier**：每次从堆加载引用时检查颜色位，若指向已被重定位的对象，就**在加载点顺手修正指针**（self-healing）。这样重定位（对象搬移）也能并发进行，不需要 STW 更新全部引用。G1 做不到并发搬移正是因为没有这套机制，其 evacuation 必须 STW。
+4. **分代 ZGC**：JDK 21 引入（JEP 439），JDK 23 起默认分代模式（JEP 474），JDK 24 移除非分代实现——分代后弱分代假说生效，吞吐和内存占用明显改善。
+5. **选型**：堆 <8G、吞吐优先选 Parallel/G1；堆大（8G~TB）且延迟敏感选 ZGC；Shenandoah 思路类似 ZGC（Brooks pointer→现也转向 load barrier + 染色），OpenJDK 中可用。
+
+```mermaid
+graph LR
+    A[用户线程加载引用] --> B{load barrier:<br/>颜色位=已重定位?}
+    B -- 否 --> C[直接使用,零额外开销]
+    B -- 是 --> D[查转发表得到新地址]
+    D --> E[修正堆中该引用 self-healing]
+    E --> C
+```
+
+**「追问陷阱」**
+1. **"SATB 和增量更新，G1 为什么选 SATB？"** —— remark 阶段的工作量不同：增量更新要在 remark 时**重新扫描所有变黑的对象**（CMS remark 可能很长），SATB 只需消费写前屏障攒下的队列，停顿更可控，契合 G1 的停顿目标模型；代价（浮动垃圾）可接受，因为 Region 化后下轮还能收。
+2. **"ZGC 全程无 STW 吗？读屏障开销多大？"** —— 仍有极短 STW 点（根集合扫描：线程栈上的引用没法用读屏障拦截，JDK 16 后栈处理也大幅并发化，停顿降至亚毫秒）。读屏障代价：每次堆引用加载多几条指令，吞吐比 G1 低约 5%~10%（视负载），这是"吞吐换延迟"的典型 trade-off——答出这个百分比量级是加分项。
+
+---
+
+<a id="q18"></a>
+
+### Q18. 双亲委派模型为什么存在？哪些场景必须打破它？（🏷JVM 📅2026-10-28 ⭐难度4）
+
+**「考察点」** 类加载器体系的设计动机（安全 + 唯一性）与三个经典打破场景（SPI/JDBC、Tomcat、OSGi/热部署），以及"如何打破"的代码级手段。
+
+**「参考答案」**
+
+**基础答案**：双亲委派（Parents Delegation Model）：类加载请求先逐级**委托给父加载器**（AppClassLoader → Platform/ExtClassLoader → Bootstrap），父加载器无法完成时子加载器才自己尝试。两个目的：① **安全**——你写的 `java.lang.String` 永远会被 Bootstrap 加载的 JDK 版本抢先，核心类库不可被篡改；② **唯一性**——同一个类在 JVM 中只被加载一次，避免类体系混乱（JVM 判定类相等 = 全限定名相同 **且** 加载器相同）。
+
+**深入原理**：
+
+1. **代码位置**：`java.lang.ClassLoader#loadClass()` 就是该模型的实现——`findLoadedClass` 查缓存 → 有 parent 则 `parent.loadClass()` → 到顶后 `findBootstrapClassOrNull` → 都失败才调自己的 `findClass()`。**打破方式**：重写 `loadClass()`（改委派顺序）；只重写 `findClass()` 是**不打破**委派的正确自定义姿势。
+2. **场景一：JDBC/SPI（线程上下文类加载器）**。`DriverManager` 在 rt.jar/由 Bootstrap 加载，但 MySQL 驱动实现在应用 classpath 下——父加载器需要"反向"用到子加载器的类，双亲委派方向反了。解法：**Thread Context ClassLoader**（默认 = AppClassLoader），`DriverManager` 通过 `ServiceLoader` + TCCL 加载厂商实现。JNDI、JAXB 同理。这是**第一次打破**。
+3. **场景二：Tomcat**。每个 WebApp 一个 `WebappClassLoader`，加载顺序刻意改为：先查自己缓存 → 委派父类 → **自己先加载**（Web 应用私有的 WEB-INF/classes、lib）→ 再给父。目的：不同 WebApp 可以隔离使用同一库的不同版本（如 A 用 Spring 4、B 用 Spring 5，各自加载器里是两个不同的类）。这是**第二次打破**。
+4. **场景三：OSGi/热部署**。模块化网状委派（按 Import-Package/Export-Package 决定找哪个 bundle 的加载器），加上丢弃旧 ClassLoader 让类可卸载重加载，实现热替换。这是**第三次打破**。
+5. **类的卸载**：一个类要被 GC，需其 ClassLoader 被回收 + Class 对象无引用 + 实例全无——所以热部署本质是"整个类加载器作废重建"。双亲委派加载的核心类（Bootstrap）永不卸载。
+6. **JDK 9 模块化后**：三层加载器改名为 Bootstrap / Platform / Application，委派逻辑还多了一步"若类属于某模块，委派给该模块的加载器"，但双亲委派仍是默认行为。
+
+```mermaid
+graph TD
+    A[Bootstrap ClassLoader<br/>java.base 等核心模块] -->|委派| B[Platform ClassLoader]
+    B -->|委派| C[Application ClassLoader]
+    C -->|委派| D[自定义/WebappClassLoader]
+    D -.->|SPI: TCCL 反向| C
+    D -.->|Tomcat: 自己先加载| D
+```
+
+**「追问陷阱」**
+1. **"自定义类加载器该重写哪个方法？"** —— 标准答案是 `findClass()`：保留 `loadClass()` 里的缓存查询与委派逻辑，只在父加载器都失败后被调用，**不破坏**双亲委派。若重写 `loadClass()` 则意味着主动打破，要能说出你清楚后果（核心类可能被重复/篡改加载）。
+2. **"同一个 class 文件被两个加载器各加载一次，instanceof 会怎样？"** —— 互相不认：`loaderA.loadClass("X")` 的实例 `instanceof` `loaderB` 视角下的 X 为 **false**，强制类型转换抛 `ClassCastException`（异常消息会出现"X cannot be cast to X"这种看起来自相矛盾的提示——这是排查类加载器隔离问题的标志性线索，答出来是实战加分项）。
+
