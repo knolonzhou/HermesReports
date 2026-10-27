@@ -1,5 +1,13 @@
 # 价格变动日志
 
+## 2026-10-28（每日核对）
+- 重新核对 30 行基线模型现价，全部官方一手源：platform.openai.com/docs/pricing、docs.claude.com/en/docs/about-claude/pricing、ai.google.dev/gemini-api/docs/pricing、api-docs.deepseek.com/quick_start/pricing、docs.mistral.ai/inference/pricing、OpenRouter /api/v1/models、阿里百炼（help.aliyun.com qwen3-max 模型页 + developer.aliyun.com 汇总：qwen3-max ¥2.5/¥10、qwen3.5-plus ¥0.8/¥4.8、qwen-long ¥0.5/¥2）。**基线模型与 10-27 完全一致，零价格变动。**
+- 🆕 **GPT-6.1 Terra / Terra Pro 上架 OpenRouter**（10-27，AIMap/OpenRouter API 双源确认）：$1/$5 per M（1.05M ctx），Batch 半价 $0.50/$2.50；已补入看板（OpenAI 官方定价页暂未单列，以 OpenRouter 价为准）。
+- 在途优惠核实仍有效：GPT-5.6 Sol 促销 $4/$20（官方页明示至少至 2026-11-21）、Gemini 4 Argon 首发价 $2/$10（至 11-30，12-01 起 $4/$20，官方页今日再确认）、Gemini 3.8 Flash $0.75/$3.75（至 12-31，2027 起 $1.50/$7.50）、DeepSeek Search/Fetch 免费（⚠️ 仅剩 4 天：11-01 北京时间 00:00 起 $0.75/千次，官方 pricing 页确认）。
+- ℹ️ Anthropic Batch 表今日确认：Fable 5.1 $5/$25、Opus 5.5 $2/$10、Sonnet 5.5 $1/$5、Haiku 5.5 $0.05/$0.25（≤100K），均与基线一致；缓存写/读价格无变化。
+- 近 7 天新闻扫描（SF·SIX 543 cuts/416 increases、LLM Cost Index、apipriceindex、AIMap、Yahoo/AWS 旧闻）：本周最大降幅集中在渠道/非基线模型——DeepSeek V4 Flash 0731 在百度渠道输出 $1.32→$0.133（-90%）、GLM 5.3 在 Reka 输出 -50%、腾讯云 Hy3 -37.5%、阿里云托管 DeepSeek V4.1 Flash -50%（10-27）等，均为聚合渠道价，非本板基线一手价，不触发快报。无新的主流模型官方降价 ≥20%、无新免费层、无新限时折扣。
+- LLM Cost Index 新上架（非基线，仅记录）：Kimi K3.1 Pro $2/$10、MiniMax M3.1 Flash $0.15/$0.60、LFM2.5-2.6B $0.35/$0.50。
+
 ## 2026-10-27（每日核对）
 - 重新核对 30 行模型现价，全部官方一手源：platform.openai.com/docs/pricing（.md 版）、docs.claude.com/en/docs/about-claude/pricing、ai.google.dev/gemini-api/docs/pricing（HTML 全文解析）、api-docs.deepseek.com/quick_start/pricing、docs.mistral.ai/inference/pricing、OpenRouter /api/v1/models、阿里百炼（经 pricemon/dayuyun 等汇总交叉核对 qwen3-max ¥2.5/¥10、qwen3.5-plus ¥0.8/¥4.8、qwen-long ¥0.5/¥2 无调价公告）。**与 10-26 基线完全一致，零变动。**
 - 在途优惠核实仍有效：GPT-5.6 Sol 促销 $4/$20（官方页明示至少至 2026-11-21）、Gemini 4 Argon 首发价 $2/$10（至 11-30，12-01 起 $4/$20）、Gemini 3.8 Flash $0.75/$3.75（至 12-31）、DeepSeek Search/Fetch 免费（⚠️ 仅剩 5 天：11-01 北京时间 00:00 起 $0.75/千次）。
