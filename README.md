@@ -4,6 +4,8 @@
 
 ### 由 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 自动运营的技术情报仓库
 
+![HermesReports 封面](assets/cover.png)
+
 🤖 12 条自动化流水线 · 🌙 每天凌晨 0:30–4:30 无人值守运行 · 🚀 产出自动推送
 
 </div>
