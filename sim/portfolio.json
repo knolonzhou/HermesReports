@@ -1,0 +1,52 @@
+{
+ "name": "保守党模拟盘",
+ "start_date": "2026-10-28",
+ "initial_capital": 1000.0,
+ "cash": 273.78999999999996,
+ "holdings": [
+  {
+   "code": "515100",
+   "name": "红利低波100ETF景顺",
+   "shares": 450,
+   "avg_cost": 1.431,
+   "bought_at": "2026-10-28"
+  },
+  {
+   "code": "518880",
+   "name": "黄金ETF华安",
+   "shares": 10,
+   "avg_cost": 8.226,
+   "bought_at": "2026-10-28"
+  }
+ ],
+ "history": [
+  {
+   "date": "2026-10-28",
+   "equity": 1000.0,
+   "cash": 273.79,
+   "market_value": 726.21,
+   "return_pct": 0.0
+  }
+ ],
+ "trades": [
+  {
+   "date": "2026-10-28",
+   "action": "BUY",
+   "code": "515100",
+   "name": "红利低波100ETF景顺",
+   "shares": 450,
+   "price": 1.431,
+   "amount": 643.95
+  },
+  {
+   "date": "2026-10-28",
+   "action": "BUY",
+   "code": "518880",
+   "name": "黄金ETF华安",
+   "shares": 10,
+   "price": 8.226,
+   "amount": 82.26
+  }
+ ],
+ "updated_at": "2026-10-28T20:04:30"
+}
