@@ -44,6 +44,7 @@ HermesReports/
 ├── deep-dives/         📚 每周万字深度长文（周一更新）
 ├── source-reading/     🔬 开源项目源码解剖（周三更新）
 ├── health/             🩺 每周系统体检报告（周日更新）
+├── videos/             📺 每日技术视频精读（bl 视频理解生成的观影笔记）
 └── shopping/           🛒 购物比价专区（独立产品线）
     ├── reports/        SATA 硬盘全网比价报告
     ├── data/           比价原始数据（CSV/JSON）
@@ -66,6 +67,7 @@ HermesReports/
 | 02:45 | ☕ 面试题夜练 | `interview/handbook.md` | 每晚 3 题 + 深度答案，7 天主题轮换（见下），算法题代码实际执行验证 |
 | 03:15 | 💰 模型价格监控 | `pricing/` | 采集 15–25 个主流模型 API 现价，对比昨日；降价 ≥20% / 限时折扣 / 新免费层触发【⚡价格快报】 |
 | 03:45 | 🧠 skill 自动精炼 | （agent 内部） | 回顾当天会话，把踩坑经验和可复用流程沉淀为 Hermes skill，让 agent 越用越聪明 |
+| 04:15 | 📺 技术视频精读 | `videos/` | 找可直连的会议演讲/官方 demo 视频，用百炼 qwen3-vl-plus 视频理解"看完"写中文观影笔记（AI Infra/Java/LLM 优先） |
 
 ### 每周/每月任务
 
