@@ -1,0 +1,545 @@
+WEBVTT
+
+00:00.000 --> 00:13.360
+Hi, everyone. My name is Josh. I work at Perkona as a quality engineer, mainly testing databases.
+
+00:13.360 --> 00:18.240
+So recently I've been playing around with the GPUs and I was curious like what works,
+
+00:18.240 --> 00:24.000
+how can we run multiple models and what are the observations that I had. So this session
+
+00:24.000 --> 00:28.720
+will be regarding how you can run multiple models, what methods you have available and what
+
+00:28.800 --> 00:35.040
+are the good ways to do that. So the overview of this session will be we will understand why we
+
+00:35.040 --> 00:41.840
+need to partition a GPU. We will explore GPU sharing methods, then we will get a use case of
+
+00:41.840 --> 00:46.960
+video generation. So we will use a van model and test it across the multiple sharing methods,
+
+00:47.520 --> 00:53.840
+then we will see what crashes we encounter and then we will optimize the workload and we will
+
+00:53.840 --> 01:02.560
+compare it with the H100 and B200 GPUs. So why should we partition a GPU? I mean there are
+
+01:02.560 --> 01:10.080
+four key reasons which I identified number one, some models don't support batching. So you will have
+
+01:10.080 --> 01:16.240
+to run particular instance of that model again. Now you cannot get a new GPU all the time and I look
+
+01:16.240 --> 01:22.800
+at full resources to it. You need to partition it. So that's one reason. Second is your application
+
+01:22.800 --> 01:28.480
+requires separate you know compute capacity of the GPU. So you need to partition it because of
+
+01:28.480 --> 01:35.200
+that or you want to sell the compute. So you partition GPU and you sell it like model does.
+
+01:35.200 --> 01:40.480
+So there are a couple of companies doing that or the last one which is my favorite you cannot afford
+
+01:40.480 --> 01:45.680
+another GPU. So you just have one method of partitioning. You have one GPU to play around with
+
+01:45.680 --> 01:52.480
+and you just partition that. So what methods do we have at all disposal? So there are two
+
+01:52.480 --> 01:58.880
+key ways in which you can share a GPU. The one is time based. Another is spatial based. So
+
+01:58.880 --> 02:05.520
+temporal that is time slicing usually has one process allocating the entire GPU for a certain period
+
+02:05.520 --> 02:11.040
+of time. So there is a large context switch. So process one process two process three. This
+
+02:11.040 --> 02:17.120
+switch amongst each other as they you know work and the GPU is allocated to all of them.
+
+02:17.680 --> 02:24.880
+In the spatial one you have two methods. The first one is MPS. Another one is make. Now
+
+02:24.880 --> 02:31.680
+of these two methods MPS is not strict isolation. You have GPU it is been shared by multiple
+
+02:31.680 --> 02:38.560
+process. Make however has strict isolation. So you partition the GPU with dedicated
+
+02:38.560 --> 02:43.600
+partitions and your process is worked in isolation. So there is no you know problem between
+
+02:43.600 --> 02:51.840
+the processes. So yeah this is a table comparing the sharing methods that are available to us.
+
+02:51.840 --> 02:58.160
+You can see time slicing has full GPU availability. MPS also has the full GPU availability
+
+02:58.160 --> 03:04.640
+but the process is shared sharing the GPU. Make however has each process allocated certain
+
+03:04.720 --> 03:10.560
+exposure of the GPUs. So it is not complete GPU sharing. It is partial GPU sharing by each
+
+03:10.560 --> 03:16.960
+process. Times slicing has high context overhead. So your process runs for the particular time.
+
+03:17.520 --> 03:23.200
+It switches. So it has to put thing in memory again process two comes into the picture. It uses
+
+03:23.200 --> 03:29.360
+the GPU. So it is a large context which overhead. MPS has context switching because there are
+
+03:29.440 --> 03:35.840
+multiple process running. So certain context which happens. However on make there is no context
+
+03:35.840 --> 03:40.960
+which overhead because process runs independently completely isolated from other processes.
+
+03:41.760 --> 03:46.960
+So time slicing is like you are renting GPU for certain time. It is time sensitive. So if your
+
+03:46.960 --> 03:54.240
+workload is large you cannot run multiple workload together. Resource sensitive is MPS. So you have
+
+03:54.320 --> 03:59.760
+particular resource but it is being shared and if a process is using too much resources other
+
+03:59.760 --> 04:06.240
+process might fail. So MPS is resource sensitive. Make has fixed resource. So there is no problem
+
+04:06.240 --> 04:12.240
+regarding that. Times slicing you can run single workload at a time but it is running at full capacity.
+
+04:12.960 --> 04:20.160
+MPS however you can run 48 processes in parallel. Make has fixed size. So the lowest size
+
+04:20.160 --> 04:25.680
+you can do is like 7. So there are 7 fixed separate instances that you can run using Miga approach.
+
+04:26.880 --> 04:31.760
+So what are the where should we run time slicing? I mean it is good for a workload which can
+
+04:31.760 --> 04:38.080
+wait. You do not need it urgently and it takes little time. So those workload are best suited for
+
+04:38.080 --> 04:45.360
+time slicing. MPS where if you know the nature of your workload you should focus on MPS because
+
+04:45.440 --> 04:50.400
+it uses full GPU and you won't have to worry much about you know partitioning things and
+
+04:50.400 --> 04:57.600
+everything like that. Make however works best for the isolated workloads. If you have workload
+
+04:57.600 --> 05:02.960
+that requires strict isolation. No other sharing or anything like that you focus on MIG.
+
+05:03.920 --> 05:09.680
+So quality of service is guaranteed in two things times slicing because it is full GPU
+
+05:09.760 --> 05:16.160
+allocation and in MIG however in MPS there is no guarantee of quality of service. I mean what do
+
+05:16.160 --> 05:24.000
+we mean by quality of service here? By this we mean memory bandwidth and SM usage. So that is the
+
+05:24.000 --> 05:34.000
+drawback of MPS. So what are the methods which GPUs support which methods? So MPS and MIG is
+
+05:34.080 --> 05:40.960
+supported on all enterprise GPUs like MPR, Blackwell and Hopper. They also support MPS method
+
+05:40.960 --> 05:49.120
+and MIG. Professional GPUs support MPS. Few MPR and Blackwell based like A6000, Aida and all.
+
+05:49.120 --> 05:56.320
+They support MIG partitioning. Provided you have the latest drivers. Then consumer GPUs support MPS
+
+05:56.320 --> 06:01.360
+but not MIG. So these are the things you should take into consideration before you try to
+
+06:01.600 --> 06:08.000
+start partitioning things because consumer grade GPUs are just not useful and not manageable
+
+06:08.000 --> 06:16.240
+with MIG work. So let us see the first method. It is MPS. The full form is multi-processed
+
+06:16.240 --> 06:22.880
+service. So essentially it is a service running on your server. So what does this service do?
+
+06:22.880 --> 06:28.960
+I mean it is a CUDA implementation. So you have CUDA API using that. There are three things which
+
+06:29.040 --> 06:36.960
+are comprising the MPS. The first one is control demand. So this demand is what manages
+
+06:36.960 --> 06:42.080
+the MPS server. So you have an MPS server running which is sharing GPU connections with the
+
+06:42.080 --> 06:48.720
+clients. Client here is any process. Any process that uses CUDA is essentially the client.
+
+06:48.720 --> 06:54.960
+After you have enabled the control demand. So here you can see in the diagram that process A,
+
+06:54.960 --> 07:02.240
+B and C. They all pass through service controller and then multiprocessor service is actually
+
+07:02.240 --> 07:07.600
+assigning GPU portions to it. So you can see the green portion is assigned to C, purple one to
+
+07:07.600 --> 07:16.960
+B and orange one to A. So this is the basic overview of the MPS. So how can we set up MPS?
+
+07:16.960 --> 07:22.240
+Well it is pretty straightforward. You first of all select the GPU device. So in case you have four
+
+07:23.120 --> 07:29.600
+the numbering might be for the device one it will be zero. Then you have one two three.
+
+07:29.600 --> 07:35.920
+So if you have four H100s it will be named accordingly. So first of all we select the GPU
+
+07:35.920 --> 07:42.240
+that we want and then we start the MPS department. By default this is installed on all H100s
+
+07:43.200 --> 07:47.760
+and the price level servers. You don't need to install anything. It is enabled but the demand
+
+07:47.840 --> 07:53.040
+is not started by default. So you start it yourself and then whenever you run any process that
+
+07:53.040 --> 07:58.640
+uses CUDA driver it will simply act as a MPS client. So you won't have to do any other thing.
+
+08:01.920 --> 08:08.400
+Now let us see the MIG approach. What does MIG actually mean? So the MIG method as you can
+
+08:08.400 --> 08:15.440
+see on the figure C there is a GPU. It is partitioned into six instances. So there is this concept
+
+08:15.440 --> 08:22.000
+of GPU instance. Now these GPU instances are completely isolated from each other. It is a hardware
+
+08:22.000 --> 08:27.440
+based partitioning method where there is no software you know switching things between the processes.
+
+08:27.440 --> 08:36.480
+It is enabled and this is how it looks like. So a MIG instance comprises of GPU slices and you can
+
+08:36.480 --> 08:43.520
+see in the figure D. It is an example of A100. So there are seven different memory slices. You can
+
+08:43.600 --> 08:51.040
+see the number 5 GB. There are eight such partitions of the memory and seven compute slices.
+
+08:51.760 --> 08:59.920
+So GPU slices plus GPU engines equals a GPU instance on the left hand side. So GPU slice is basically
+
+08:59.920 --> 09:07.120
+a memory slice combination with a compute slice and one memory slice is roughly around one
+
+09:07.200 --> 09:12.320
+eighth of the total GPU. Similarly a compute slice is around one seventh of the GPU.
+
+09:13.040 --> 09:23.280
+So here for sake of simplicity we are writing essence as compute. So how do slices occur? I mean can
+
+09:23.280 --> 09:29.920
+I slice compute first and then slice memory? No. First of all you slice memory. You assign memory
+
+09:29.920 --> 09:36.320
+and then you assign the compute to that particular sliced memory. So it has a hierarchy and a step.
+
+09:36.880 --> 09:44.880
+So you follow that step to you know create a MIG slice. So what are the combinations that we have?
+
+09:44.880 --> 09:51.040
+So on the left hand side is the smallest instance combination where a small memory is selected
+
+09:51.040 --> 09:58.320
+and a smallest isolated compute instance is selected. So it is like one G 5 GB instance, one G
+
+09:58.320 --> 10:06.000
+means one compute and 5 GB means 5 GB of VRAM. Now this workload is completely isolated from the
+
+10:06.080 --> 10:10.560
+point of view of memory because no other block of memory is added into this combination.
+
+10:10.560 --> 10:15.920
+It is the smallest combination available and yeah this is a small instance. So size might be
+
+10:15.920 --> 10:22.160
+issue for your workload. Then you have a multiple isolated compute instances. Now what does this mean?
+
+10:22.800 --> 10:30.960
+You have a memory slice on top which is a combination of 5 or 4 5 GB instances and a one
+
+10:31.040 --> 10:38.320
+compute instance is. So this entire structure is partition into second level where one compute
+
+10:38.320 --> 10:45.360
+is enabled within the four compute setup. So one C 4 G will actually mean that you have 4 G
+
+10:45.360 --> 10:53.760
+per instance but that 4 G is partition and one compute is used from that. So that 4 G is again
+
+10:53.760 --> 11:00.880
+partition into four different parts. Yeah so here you can see that memory is still shared between
+
+11:01.040 --> 11:07.600
+those four compute. So essentially this might create problems if you have 4 isolated compute
+
+11:07.600 --> 11:13.840
+instances but they are sharing the same memory. So your workload might overwhelm the memory
+
+11:13.840 --> 11:19.920
+that is 20 GB and you might get some issues. There is another approach where you can have multiple
+
+11:19.920 --> 11:25.840
+large chunks of compute as well as memory. This essentially is a single instance with a large
+
+11:26.320 --> 11:33.120
+you know GPU compute and memory. So yeah there is one drawback that if your workload is not
+
+11:33.120 --> 11:38.400
+that intensive your compute might be wasted or your memory might be wasted. It is sitting idle
+
+11:38.400 --> 11:44.880
+so you might not be using that. So what are the overheads in make? I mean you are using the
+
+11:44.880 --> 11:49.920
+mega approach you are getting guaranteed quality but there is one problem with this approach.
+
+11:50.000 --> 11:55.440
+You are compromising certain things. You will compromise on certain memory leftovers,
+
+11:56.320 --> 12:01.920
+certain SM not being utilized and there are certain combinations in which you are essentially
+
+12:01.920 --> 12:08.080
+wasting your compute capacity. So this diagram displays an H 100 nick profiles.
+
+12:08.880 --> 12:18.560
+As you can see that 1 G has around 16 SMs. It is not exactly 1 7th of 132. So I mean you can see
+
+12:18.640 --> 12:25.200
+there are certain things which are being not added. 3 G also it is not exactly 3 times 16.
+
+12:25.200 --> 12:30.480
+It is more than that. So yeah there are certain drawbacks of using make.
+
+12:32.560 --> 12:39.680
+So how do we create a make-per-cut partition? So as you can see from figure k you are listing
+
+12:39.680 --> 12:45.840
+out the GPUs that you have. So we have a device named GPU 0 which is an H 100 ADGB instance.
+
+12:46.800 --> 12:53.520
+Then you see what are the profiles that are available to you? What are free profiles available to you?
+
+12:53.520 --> 12:58.240
+And then you partition them. So let us see how we can create a make instance.
+
+12:58.240 --> 13:03.280
+So first of all we need to enable the make-mode. This mode is not enabled by default.
+
+13:03.280 --> 13:07.280
+So you create this make-mode using the first step.
+
+13:07.280 --> 13:11.520
+Then on the second step you create a make-instance on the GPU 0.
+
+13:11.680 --> 13:19.200
+Hyphen i0 is basically saying that use GPU 0 and create a GPU instance. CGI means GPU
+
+13:19.200 --> 13:25.520
+instance. And 9 number that you are seeing is the profile ID. You can see the profile ID on the
+
+13:25.520 --> 13:32.320
+figure L. There is it is it is 3 G 40 GB. So you are creating 2 such instances. So 9
+
+13:33.120 --> 13:43.520
+is basically 2 profiles of 4 G 40 GB. Sorry not 3 G 40 GB. So you can list individually like
+
+13:43.520 --> 13:49.440
+with GPU instance you have and which compute instance you have. You can see that step 3
+
+13:49.440 --> 13:55.040
+and step 2. They have order. You first create a GPU instance and then you assign compute
+
+13:55.040 --> 14:01.120
+instance to it. So what are the other things that you can do with the make partitioning?
+
+14:01.120 --> 14:07.200
+Well if you partition and create make you can enable MPS demand within it. So MPS is basically
+
+14:07.200 --> 14:14.240
+a service which can be managed. So yeah you can create a combination like this. You can have variable
+
+14:14.240 --> 14:19.920
+workload like P1, P2, P3 running on MPS within a make-instance while you can have a completely
+
+14:19.920 --> 14:26.800
+separate isolated workload on make-instance 2. There is one more thing that you should keep in mind
+
+14:26.800 --> 14:33.280
+if you have enabled make service first you cannot create MPS. Sorry if you have MPS service
+
+14:33.280 --> 14:38.720
+enabled first you cannot create make. There is an order to it so it disable MPS demand and then
+
+14:38.720 --> 14:46.960
+you can create make. So let us look at the example that we tested. So when 2.2 model is what we
+
+14:46.960 --> 14:53.360
+used. There are 2 models. One is a large 14 billion parameter one. Then there is another one which
+
+14:53.520 --> 14:59.840
+is text input based, 5 billion parameter model. The left hand side, the larger one uses prompt
+
+14:59.840 --> 15:07.520
+image and audio to generate a video. So I will study for 4-itip pixels how much memory is needed
+
+15:07.520 --> 15:13.760
+what is the constant workload. So we know the nature of this workload like it stays constant
+
+15:13.760 --> 15:20.160
+late 55 GB VM for a certain duration of time but at the end when the files are being created it
+
+15:20.160 --> 15:27.040
+goes and shoots up to 58 GB. So peak means that particular 30 second duration. So there is a medium
+
+15:27.040 --> 15:36.720
+parameter model which is the text input one. It generates 720p pixel videos. So we encountered
+
+15:36.720 --> 15:44.640
+out of memory. We are testing these things on MPS and you can see in the diagram that B is where
+
+15:44.640 --> 15:50.000
+you can monitor the CUDA process. So what I did was I created terminal started the NVIDIA SMI
+
+15:50.400 --> 15:57.200
+and kept it in watch. I ran 2 processes in the bottom shell CND just to see what happens.
+
+15:58.640 --> 16:05.600
+Two of them were running. Both of them are very large models. It needs 55 GB. Now while both of them
+
+16:05.600 --> 16:12.720
+started at the same time they need more resource. Now one process was able to outcompit the other one
+
+16:12.720 --> 16:17.040
+and the other one failed. So you can see on the C that we got the out of memory error.
+
+16:17.920 --> 16:25.920
+Okay, so what else did we tested? We tested running 3, 5 billion parameter models using MPS.
+
+16:26.800 --> 16:32.480
+Where workload was constant? We were getting around 22 GB memory equally distributed by all the
+
+16:32.480 --> 16:40.080
+processes but just before the end it crashed because one of them required 33 GB and that another
+
+16:40.080 --> 16:46.400
+workload got cancelled. Good thing about this is that it tells you which process is causing the issue
+
+16:46.400 --> 16:53.680
+like because of process 2, 2, 1 and 3, 7, 4 things got crashed and this process is exited.
+
+16:55.520 --> 17:02.720
+So what were the tests that we found? Well you can see with this graph we were able to run full
+
+17:02.720 --> 17:09.760
+GPU baseline tests. Time to video generation was good but it failed in a couple of them.
+
+17:10.160 --> 17:17.200
+So this is the overview of the performance test that happened. The last one is if you want to run
+
+17:17.200 --> 17:23.120
+a big model you cannot do it on H100. You need a B200. So we also tested that in a B200.
+
+17:25.280 --> 17:32.720
+But there is one more method. Like this process head around equally 22 GB usage by 3 processes.
+
+17:32.720 --> 17:38.160
+We can run them in certain order in which we can make sure that three of them runs properly.
+
+17:38.400 --> 17:45.440
+So yeah this is where we use that. So we know that at the end 30 seconds is where problem occur.
+
+17:45.440 --> 17:50.320
+So why not we simply start each process one minute after the other. Like staggering things.
+
+17:50.320 --> 17:55.600
+You start certain things first and then wait and process other things in parallel. So we were
+
+17:55.600 --> 18:00.800
+able to successfully do that and it took 10 minute and 30 seconds to generate three videos which is
+
+18:00.800 --> 18:07.760
+quite quick compared to all the workloads that we have. So changing your workflow strategy can
+
+18:07.840 --> 18:15.760
+improve your performance and throughput. Also let us see on the B200. Like B200 has good profiles.
+
+18:16.640 --> 18:22.320
+But you can maximum generate three make profiles because even though it is 180 GB it is not equally
+
+18:22.320 --> 18:28.400
+partitioned. There are certain combinations which are not used full for our workload and same
+
+18:28.400 --> 18:34.720
+goes for the 14 billion. You can only have two. So we tested this thing and we were able to generate
+
+18:34.800 --> 18:42.960
+three large videos and it worked in a really good time. So this is the comparison of both methods
+
+18:42.960 --> 18:51.120
+on H100 and B200. As you can see the H100 using MPS we were able to run two without any issues
+
+18:51.120 --> 18:58.160
+three using staggered approach. We were only able to run one large model but when we used B200 we were
+
+18:58.160 --> 19:04.000
+able to three run three of them in parallel without any issues. Well for the smaller model we were
+
+19:04.000 --> 19:08.720
+able to run five in parallel with other issues. So that is a good thing about using a big GPU.
+
+19:09.920 --> 19:15.920
+Then for the make partitions there was not much improvement. You can only have three
+
+19:16.720 --> 19:21.440
+based on the partitioning approach which will be faster but using four it will be a bit slower.
+
+19:24.400 --> 19:30.560
+So what is the conclusion? There is no single method which is great. Make partition seems
+
+19:30.640 --> 19:38.080
+really good but it is not good at certain cases. For large models it is recommended to use B200.
+
+19:38.080 --> 19:43.120
+You can try to fit workload but you will need to optimize your model way more which will compromise
+
+19:43.120 --> 19:49.280
+the quality of the output. And yeah that is the last thing. Optimize your model as much as you can.
+
+19:51.680 --> 19:56.720
+Also I will be having two more talks. One will be mix specific and another will be monitoring.
+
+19:56.720 --> 20:00.960
+So monitoring will be a bit more interesting like how you can monitor the GPUs. What are the key
+
+20:00.960 --> 20:03.200
+things? So yeah see you.
+
+20:09.840 --> 20:14.880
+Thank you very much and fortunately no time for questions but you can grab this speaker afterwards.
+
