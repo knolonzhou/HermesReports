@@ -105,6 +105,7 @@ HermesReports/
 ## 📖 最新内容
 
 ### 前沿日报
+- [2026-10-30 前沿日报](reports/2026-10-30-frontier-daily.md)
 - [2026-10-28 前沿日报](reports/2026-10-28-frontier-daily.md)
 - [2026-10-27 前沿日报](reports/2026-10-27-frontier-daily.md)
 - [2026-10-26 前沿日报](reports/2026-10-26-frontier-daily.md)
