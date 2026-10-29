@@ -9,6 +9,9 @@
 - [Q1. Spring 如何解决循环依赖？为什么是三级缓存而不是两级？](#q1)（📅2026-10-23 ⭐4）
 - [Q2. @Transactional 有哪些失效场景？底层原理是什么？](#q2)（📅2026-10-23 ⭐4）
 - [Q3. Spring Boot 自动装配的原理是什么？如何自定义一个 Starter？](#q3)（📅2026-10-23 ⭐3）
+- [Q19. 讲讲 Spring Bean 的完整生命周期，各扩展点在什么时机被调用？](#q19)（📅2026-10-30 ⭐4）
+- [Q20. Spring AOP 用 JDK 动态代理还是 CGLIB？为什么"同类内部方法调用"会让切面失效？](#q20)（📅2026-10-30 ⭐4）
+- [Q21. @Autowired 和 @Resource 有什么区别？多个同类型 Bean 时 Spring 怎么选？](#q21)（📅2026-10-30 ⭐3）
 
 ### JVM（内存模型/GC/类加载/JIT）
 - [Q16. 对象一定分配在堆上吗？讲讲逃逸分析、标量替换和 TLAB](#q16)（📅2026-10-28 ⭐4）
@@ -1041,3 +1044,184 @@ graph TD
 1. **"自定义类加载器该重写哪个方法？"** —— 标准答案是 `findClass()`：保留 `loadClass()` 里的缓存查询与委派逻辑，只在父加载器都失败后被调用，**不破坏**双亲委派。若重写 `loadClass()` 则意味着主动打破，要能说出你清楚后果（核心类可能被重复/篡改加载）。
 2. **"同一个 class 文件被两个加载器各加载一次，instanceof 会怎样？"** —— 互相不认：`loaderA.loadClass("X")` 的实例 `instanceof` `loaderB` 视角下的 X 为 **false**，强制类型转换抛 `ClassCastException`（异常消息会出现"X cannot be cast to X"这种看起来自相矛盾的提示——这是排查类加载器隔离问题的标志性线索，答出来是实战加分项）。
 
+
+---
+
+<a id="q19"></a>
+
+### Q19. 讲讲 Spring Bean 的完整生命周期，各扩展点在什么时机被调用？（🏷Spring 📅2026-10-30 ⭐难度4）
+
+**「考察点」** Bean 从实例化到销毁的完整链路，尤其是三大扩展点（`BeanPostProcessor`、`Aware` 接口族、初始化回调）的**先后顺序**——顺序记错说明是背的而不是理解的。
+
+**「参考答案」**
+
+**基础答案（一句话骨架）：** 实例化 → 属性填充 → Aware 回调 → BeanPostProcessor 前置 → 初始化（@PostConstruct → afterPropertiesSet → initMethod）→ BeanPostProcessor 后置（此处生成代理）→ 使用 → 销毁（@PreDestroy → destroy → destroyMethod）。
+
+**下面这段顺序是我用 Spring 6.1.14 真实跑出来的**（一个同时实现了 `BeanNameAware/BeanFactoryAware/InitializingBean/DisposableBean` 并带 `@PostConstruct/@PreDestroy/@Bean(initMethod,destroyMethod)` 的 Bean，外加一个自定义 `BeanPostProcessor`）：
+
+```text
+1. 构造器实例化
+3. BeanNameAware.setBeanName: myBean
+4. BeanFactoryAware.setBeanFactory
+5. BeanPostProcessor.before (myBean)
+6. @PostConstruct
+7. InitializingBean.afterPropertiesSet
+8. @Bean(initMethod) 自定义初始化
+9. BeanPostProcessor.after (myBean) -> 返回可能是代理的对象
+10. 容器就绪，Bean 使用中...
+11. @PreDestroy
+12. DisposableBean.destroy
+13. @Bean(destroyMethod) 自定义销毁
+```
+
+（第 2 步是属性填充/依赖注入，发生在 `Aware` 之前，上面这个 Bean 没有字段依赖所以没打印。）
+
+**深入原理：**
+
+1. **实例化 vs 初始化是两回事**。`doCreateBean` 里先 `createBeanInstance`（调构造器，此时对象还是"半成品"，字段全是默认值），再 `populateBean`（做 `@Autowired`/`@Value` 依赖注入），最后 `initializeBean` 才是各种初始化回调。很多人把"new 出来"当生命周期起点，漏掉了中间大量的后置处理器织入点。
+
+2. **三种初始化回调的顺序是固定的**：`@PostConstruct`（由 `CommonAnnotationBeanPostProcessor` 这个 BPP 的 before 阶段触发）→ `InitializingBean.afterPropertiesSet()` → `@Bean(initMethod)`。销毁完全对称：`@PreDestroy` → `DisposableBean.destroy()` → `destroyMethod`。记忆法：**注解 > 接口 > 配置**，Spring 自己的注解永远最优先。
+
+3. **`BeanPostProcessor` 是整个 IoC 容器的"万能钩子"**。它的 `postProcessAfterInitialization` 返回的对象会**替换**原始 Bean 存进单例池——AOP 代理（`AbstractAutoProxyCreator`）、`@Async`、`@Transactional` 全都是在这个后置阶段"偷梁换柱"，把你注入的实现类换成代理对象。这也是为什么第 9 步的注释写"返回可能是代理"。
+
+```mermaid
+graph TD
+    A[构造器实例化<br/>对象半成品] --> B[属性填充<br/>@Autowired 依赖注入]
+    B --> C[Aware 回调<br/>BeanNameAware / BeanFactoryAware / ApplicationContextAware]
+    C --> D[BPP.postProcessBefore<br/>@PostConstruct 在这里触发]
+    D --> E[afterPropertiesSet]
+    E --> F[initMethod]
+    F --> G[BPP.postProcessAfter<br/>★AOP 代理在这里生成]
+    G --> H[Bean 就绪, 放入单例池]
+    H --> I[容器关闭]
+    I --> J[@PreDestroy → destroy → destroyMethod]
+```
+
+怎么读这张图：竖线就是时间轴，从上到下是一个单例 Bean 的一生；`G` 节点标了星，因为它是最关键的一步——容器里最终存的、别人注入拿到的，是这一步返回的对象，而不是你 `new` 出来的原始对象。
+
+4. **`Aware` 接口族的时机**：`BeanNameAware`/`BeanFactoryAware` 在 `initializeBean` 的 `invokeAwareMethods` 里调用（早于所有 BPP）；而 `ApplicationContextAware` 不是特判的，它由 `ApplicationContextAwareProcessor`（一个 BPP）在 before 阶段回调——所以它其实比前两个晚，且只在 `ApplicationContext` 环境下才有。
+
+**「追问陷阱」**
+
+1. *"为什么 `@Bean` 定义的 `BeanPostProcessor` 要声明成 `static` 方法？"* —— BPP 必须在**普通 Bean 实例化之前**就注册好，否则来不及处理它们。如果 BPP 的 `@Bean` 方法不是 static，Spring 为了创建这个 BPP 得先实例化它所在的 `@Configuration` 类，而配置类本身也要被 BPP（如处理 `@Configuration` 的 CGLIB 增强器）加工——此时 BPP 还没就绪，就会打出这条真实警告：**`Bean 'xxx.Config' ... is not eligible for getting processed by all BeanPostProcessors (not eligible for auto-proxying)`**。声明成 `static` 让 BPP 脱离配置类实例、提前注册即可消除。我实测：BPP 若还 `@Autowired` 了别的 Bean，那个被依赖的 Bean 会提前创建并触发 `not eligible for auto-proxying` 警告——它没机会被 AOP 代理了。
+
+2. *"`postProcessBeforeInitialization` 和 `postProcessAfterInitialization` 哪个更常用来做代理？为什么？"* —— after。因为代理要包裹的是**已经初始化完成、可用**的目标对象；在 before 阶段对象还没跑完 `afterPropertiesSet`，此时织入代理，目标方法里的初始化逻辑和代理语义会错位。Spring 的自动代理器统一在 after 阶段干活。
+
+---
+
+<a id="q20"></a>
+
+### Q20. Spring AOP 用 JDK 动态代理还是 CGLIB？为什么"同类内部方法调用"会让切面失效？（🏷Spring 📅2026-10-30 ⭐难度4）
+
+**「考察点」** 两种代理机制的选择规则、代理对象与目标对象的关系，以及 self-invocation（内部调用）失效的**根因**——这是从"@Transactional 失效清单"往底层追一层的问题。
+
+**「参考答案」**
+
+**基础答案：** Spring AOP 默认规则：**目标类实现了接口 → JDK 动态代理（基于接口）；没实现接口 → CGLIB（基于子类，生成字节码继承目标类）**。Spring Boot 从 2.x 起默认 `proxyTargetClass=true`，即**一律用 CGLIB**（避免"注入接口实现却拿到不能强转回实现类"的坑）。
+
+**我用 Spring 6.1.14 实测的行为对照：**
+
+```text
+# @EnableAspectJAutoProxy（默认，有接口走 JDK）
+有接口 Bean 的代理类型: jdk.proxy2.$Proxy17
+无接口 Bean 的代理类型: AopDemo$OrderService$$SpringCGLIB$$0
+
+# @EnableAspectJAutoProxy(proxyTargetClass = true)（Boot 默认）
+proxyTargetClass=true 时代理类型: AopDemo2$PayServiceImpl$$SpringCGLIB$$0
+是否 instanceof 实现类: true
+```
+
+**深入原理：**
+
+1. **JDK 代理只能代理接口方法**。它生成一个实现了同组接口的 `$Proxy` 类，内部持有一个 `InvocationHandler`（Spring 的 `JdkDynamicAopProxy`），所有接口方法调用被转发到 `invoke()`，在那里跑切面链再 `method.invoke(target)`。因为 `$Proxy17` 和你原来的 `PayServiceImpl` 是**两个没有继承关系的类**，所以 JDK 代理下把 Bean 强转成实现类会直接抛异常——我实测：
+   ```text
+   java.lang.ClassCastException: class jdk.proxy2.$Proxy17 cannot be cast to class AopDemo$PayServiceImpl
+   ```
+   这就是为什么"注入时用接口类型接收"是 JDK 代理下的铁律，也是 Boot 改成默认 CGLIB 的动机。
+
+2. **CGLIB 通过继承生成子类**。它用 ASM 动态生成 `目标类$$SpringCGLIB$$0` 这个子类，覆写非 final 方法，方法体里先跑切面再 `super` 调父类逻辑。所以 CGLIB 代理 `instanceof 原类` 为 **true**，可以按实现类注入。代价：final 类不能被代理、final/private/static 方法不能被拦截（子类无法覆写）。
+
+3. **self-invocation（内部调用）为什么失效**——这是本题核心。切面逻辑织入在**代理对象**上，而不是目标对象里。当你从外部 `payService.pay()`，走的是代理 → 切面 → 目标方法；但在目标类内部写 `this.otherMethod()`，这个 `this` 指向的是**原始目标对象本身**，压根没经过代理，切面自然不触发。我实测（同一个 Bean 里 `selfCall()` 调 `this.pay()` vs 调 `AopContext.currentProxy()`）：
+   ```text
+   1) this.pay() —— 不走切面:
+      pay() 执行, this=PayServiceImpl        ← 没有 [切面] 日志
+   2) AopContext.currentProxy() —— 走切面:
+      [切面] around pay
+      pay() 执行, this=PayServiceImpl
+   ```
+   `@Transactional`、`@Cacheable`、`@Async` 全部同理——它们都是 AOP 代理，内部 this 调用一律失效。
+
+4. **三种解法**（和 Q2 呼应，这里给机制层面的解释）：
+   - **拆到另一个 Bean**（最推荐）：跨 Bean 调用必然经过代理。
+   - **注入自身代理**：`@Resource private PayService self;` 然后 `self.pay()`——self 是代理对象。
+   - **`AopContext.currentProxy()`**：需 `@EnableAspectJAutoProxy(exposeProxy=true)`，Spring 把当前代理放进 ThreadLocal，内部通过它拿到代理再调用（上面第 2 段日志就是这么打出来的）。
+
+**「追问陷阱」**
+
+1. *"JDK 代理和 CGLIB 谁快？"* —— 别背"JDK 快"的旧结论。现代 JDK（8+ 尤其带 `-XX:+UseCompressedOops` 的反射优化）里两者创建/调用性能差距很小，CGLIB 生成子类**首次创建慢一点**但调用不必走反射 `Method.invoke`，高频调用反而可能更快。真正决定选型的不是速度，而是**能否按实现类注入**和**能否拦截非接口方法**——这才是 Boot 默认 CGLIB 的原因。答"看场景：只要接口就用 JDK 更轻量、要拦实现类方法或按类注入就 CGLIB"是加分回答。
+
+2. *"`@Transactional` 方法内 try-catch 了异常还回滚吗？"* —— 不回滚。事务代理在切面里根据"是否有异常抛出到代理层"决定 commit/rollback；异常被你 catch 掉、没重新抛出，代理看到的是"正常返回"，于是提交。要么不 catch，要么 catch 后 `TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()` 手动标记回滚。这题把 AOP 失效和事务失效串起来了，能答上说明理解到位。
+
+---
+
+<a id="q21"></a>
+
+### Q21. @Autowired 和 @Resource 有什么区别？多个同类型 Bean 时 Spring 怎么选？（🏷Spring 📅2026-10-30 ⭐难度3）
+
+**「考察点」** 依赖注入的**匹配规则**（byType vs byName）、多候选 Bean 的消歧链路，以及一个很容易踩的 `@Primary` 失效陷阱。
+
+**「参考答案」**
+
+**基础答案：**
+
+| 维度 | `@Autowired` | `@Resource` |
+|---|---|---|
+| 来源 | Spring 自带（`org.springframework.beans`） | JSR-250 标准（`jakarta.annotation`） |
+| 默认匹配 | **按类型（byType）** | **按名称（byName）**，找不到再退回按类型 |
+| 配合消歧 | `@Qualifier("beanName")` | `@Resource(name="beanName")` |
+| required | 支持 `@Autowired(required=false)` | 无此属性（找不到就报错） |
+| 处理者 | `AutowiredAnnotationBeanPostProcessor` | `CommonAnnotationBeanPostProcessor` |
+
+**深入原理——多候选 Bean 的消歧顺序：** 当一个类型有多个实现，`@Autowired` 按类型找到 2+ 个候选时，Spring 依次尝试：① 字段/参数上的 `@Qualifier` 精确指定 → ② 标了 `@Primary` 的候选 → ③ 候选 Bean 名 == 字段名（byName 兜底）→ 都不满足则抛 `NoUniqueBeanDefinitionException`。`@Resource` 则相反，**先按 name**（默认取字段名，或 `name` 属性），name 找不到才按 type。
+
+**我用 Spring 6.1.14 实测的注入结果**（`Notify` 接口有 `smsNotify`/`emailNotify` 两个实现，字段分别用 byType+@Primary、@Qualifier、@Resource(name)、List 集合注入）：
+
+```text
+sms/email/sms/all=[sms, email]
+```
+
+即：byType 注入命中 `@Primary` 的 sms；`@Qualifier("emailNotify")` 精确命中 email；`@Resource(name="smsNotify")` 按名命中 sms；`List<Notify>` 集合注入拿到全部两个。
+
+**⚠️ 一个真实陷阱（我第一次跑直接抛异常）：** `@Primary` 标在**实现类**上、但 Bean 是通过 `@Bean` **方法**注册进容器时，**`@Primary` 不生效**！
+
+```java
+@Primary                              // ← 标在类上
+static class SmsNotify implements Notify { ... }
+
+@Configuration
+static class Config {
+    @Bean SmsNotify smsNotify() { ... }   // 通过 @Bean 方法注册
+}
+// 结果: @Autowired Notify byType 抛 NoUniqueBeanDefinitionException!
+```
+
+我实测异常信息：
+```text
+No qualifying bean of type 'Notify' available: expected single matching bean but found 2: smsNotify,emailNotify
+```
+
+**根因**：`@Bean` 方法注册时，Bean 定义的元数据来自**方法上的注解**，而不是返回类型那个类上的注解——类上的 `@Primary` 不会被 `@Bean` 定义继承。**正解**是把 `@Primary` 挪到 `@Bean` 方法上：
+
+```java
+@Bean @Primary SmsNotify smsNotify() { return new SmsNotify(); }  // ✅ 生效
+```
+
+（例外：如果 SmsNotify 是靠 `@Component` + 包扫描注册的，类上的 `@Primary` 是生效的——因为此时元数据就来自类本身。所以这条陷阱精确表述是：**`@Primary` 标在类上，仅当该 Bean 由组件扫描注册时有效；由 `@Bean` 方法注册时须标在方法上。**）
+
+**集合注入的顺序**：`List<Notify>` / `Map<String,Notify>` 注入全部同类型 Bean，顺序由 `@Order`/`Ordered`/`@Priority` 决定，无标注则按注册顺序。做"责任链""策略列表"时很常用。
+
+**「追问陷阱」**
+
+1. *"构造器注入、字段注入、setter 注入选哪个？"* —— **构造器注入最优**（Spring 官方推荐）：① 依赖不可变（可声明 final）；② 保证对象创建时依赖已就绪，不会出现半初始化对象；③ 便于单元测试（直接 new 传 mock）；④ 能在启动期暴露循环依赖（字段/setter 注入会靠三级缓存悄悄容忍循环依赖，见 Q1）。单构造器时 `@Autowired` 可省略。字段注入的坏处正是"藏住了循环依赖和过多依赖"。
+
+2. *"`@Autowired` 注入 `Map<String, T>` 时 key 是什么？"* —— key 是 **Bean 名称**，value 是 Bean 实例；`Set<T>`/`List<T>` 是所有匹配实例。经典用法：把某个接口的所有实现一次性注入成 `Map<beanName, 策略>`，运行时按业务类型 `map.get(type)` 取对应策略——这就是 Spring 里实现"策略模式/工厂"的惯用法，比一堆 if-else 优雅得多。
