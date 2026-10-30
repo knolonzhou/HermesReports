@@ -1,3 +1,12 @@
+# LLM API 价格变更日志
+
+## 2026-10-31（每日核对）
+- 重新核对 30 行基线模型现价，全部官方一手源：platform.openai.com/docs/pricing + openai.com/api/pricing、platform.claude.com/docs/en/about-claude/pricing、ai.google.dev/gemini-api/docs/pricing（页面 Last updated 2026-10-28 UTC）、api-docs.deepseek.com/quick_start/pricing（curl 直取 PRICING 表）、docs.mistral.ai/inference/pricing、OpenRouter /api/v1/models（curl JSON）、help.aliyun.com/zh/model-studio/model-pricing。**一手官方价与 10-30 基线完全一致，零变动。**
+- ⚠️ **Qwen3-Max 从阿里百炼官方价目表消失**（10-31 核对发现）：help.aliyun.com 千问Max 分区现仅列 qwen3.8-max / qwen3.7-max（均 ¥12/¥36，1M ctx）与 qwen-max（¥2.4/¥9.6），qwen3-max 已无条目，疑似退役并由 qwen3.8-max 接替（第三方站 pricemon 仍挂 ¥2.5/¥10 旧快照，10-10 验证）。看板已标注，价格保留为移除前记录。
+- ✅ 在途优惠核实仍有效：GPT-5.6 Sol 促销 $4/$20（官方明示至少至 11-21）、Gemini 4 Argon 首发价 $2/$10（至 11-30，12-01 起 $4/$20）、Gemini 3.8 Flash $0.75/$3.75（至 12-31）。
+- ⏰ **DeepSeek Search/Fetch 免费期今日（10-31）最后一天**：官方页确认 11-01 北京时间 00:00 起 $0.75/千次（Harness/Claude Code/Codex 内服务端调用同样开始计费）。
+- 近 7 天新闻扫描（llmprices.net 每日变更页 10-30 快照、tensorust、tokencost.app、huggingface 讨论区价格数据集等）：无新的主流模型官方降价 ≥20%、无新免费层、无新限时折扣。llmprices 记录的 26 项变动几乎全为 OpenRouter 路由渠道价（Kimi K3 输出 $20→$10.8 -46%、Qwen3.8-27B 缓存 -44%、GLM 4.6 -9.1% 等，均为聚合器内最低价路由切换），Mistral Large 4 三行 -50% 即 10-29 官方永久降价的渠道端反映（已于当日收录）。tensorust 的 "OpenAI 80% price cut" 文章为对 GPT-6 系降价历史的回顾分析，非新事件。
+
 # 价格变动日志
 
 ## 2026-10-30（每日核对）⚡ 有重大变动
