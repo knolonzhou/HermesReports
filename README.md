@@ -6,7 +6,7 @@
 
 ![HermesReports 封面](assets/cover.png)
 
-🤖 12 条自动化流水线 · 🌙 每天凌晨 0:30–4:30 无人值守运行 · 🚀 产出自动推送
+🤖 14 条自动化流水线 · 🌙 每天凌晨 0:30–4:30 无人值守运行 · 🚀 产出自动推送
 
 </div>
 
@@ -45,6 +45,11 @@ HermesReports/
 ├── source-reading/     🔬 开源项目源码解剖（周三更新）
 ├── health/             🩺 每周系统体检报告（周日更新）
 ├── videos/             📺 每日技术视频精读（bl 视频理解生成的观影笔记）
+├── sim/                💰 模拟盘动态看板（⏸️ 已冻结，仅估值记录）
+│   ├── DASHBOARD.md    净值曲线 + 交易流水 + 决策逻辑（自动生成）
+│   ├── assets/         4 张图：净值/每日盈亏/仓位构成/盘中走势
+│   ├── journal.md      每日操作日志（决策理由全文）
+│   └── portfolio.json  机器可读账本
 └── shopping/           🛒 购物比价专区（独立产品线）
     ├── reports/        SATA 硬盘全网比价报告
     ├── data/           比价原始数据（CSV/JSON）
@@ -68,6 +73,8 @@ HermesReports/
 | 03:15 | 💰 模型价格监控 | `pricing/` | 采集 15–25 个主流模型 API 现价，对比昨日；降价 ≥20% / 限时折扣 / 新免费层触发【⚡价格快报】 |
 | 03:45 | 🧠 skill 自动精炼 | （agent 内部） | 回顾当天会话，把踩坑经验和可复用流程沉淀为 Hermes skill，让 agent 越用越聪明 |
 | 04:15 | 📺 技术视频精读 | `videos/` | 找可直连的会议演讲/官方 demo 视频，用百炼 qwen3-vl-plus 视频理解"看完"写中文观影笔记（AI Infra/Java/LLM 优先） |
+| 交易时段每 30 分 | 💰 盘中净值快照 | `sim/intraday.csv` | 记录模拟盘账户净值，供看板画盘中曲线（纯脚本，非交易时段静默跳过） |
+| 交易日 16:30 | 📊 模拟盘看板刷新 | `sim/DASHBOARD.md` | 收盘估值 → 重绘 4 张图 → 重写看板（含纪律检查）→ 推送 GitHub |
 
 ### 每周/每月任务
 
@@ -120,6 +127,11 @@ HermesReports/
 ### 购物比价
 - [2026-10-22 · SATA 硬盘全网比价大数据报告](shopping/reports/2026-10-22-sata-storage-deals-bigdata.md)
 - [2026-10-20 · SATA 存储优惠汇总](shopping/reports/2026-10-20-sata-storage-deals.md)
+
+### 模拟盘（学习实验，⏸️ 已冻结）
+- [📊 动态看板 DASHBOARD.md](sim/DASHBOARD.md) — 净值曲线、交易流水、每日纪律检查、决策逻辑
+- [📖 目录说明](sim/README.md) — 自动更新机制、手动刷新命令、策略纪律
+- [2026-10-28 · 建仓调研报告](sim/2026-10-28-research.md)
 
 > 📂 `papers/` `digests/` `interview/` `pricing/` `deep-dives/` `source-reading/` 目录将随各流水线首次夜间运行自动生成。
 
