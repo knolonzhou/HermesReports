@@ -11,3 +11,4 @@
 | 2026-10-27 | [UserArena + OPTD: 购物用户模拟基准与轨迹蒸馏](2026-10-27-userarena-optd-shopping-user-simulator.md) | arXiv 2610.30932 · HF Daily Papers 10-26 榜首 · 开源项目+论文对照（RecGPT-Team/UserArena） | 用户模拟器、五级评测、生产 A/B 校验、on-policy 蒸馏 |
 | 2026-10-28 | [Trajectory2Gym: 决策级接地监督的工具调用 Agent 数据合成](2026-10-28-trajectory2gym-grounded-tool-use-sft.md) | arXiv 2610.33568 · HF Daily Papers 10-27 第 2 · 开源项目+论文对照（yihaohu0118/Trajectory2Gym） | 工具调用 SFT、决策接地、组合覆盖、父级归一化 |
 | 2026-10-30 | [DTCA: Denoising Token Credit Assignment for RL in Diffusion Language Models](2026-10-30-dtca-diffusion-llm-token-credit.md) | arXiv 2610.35201 · HF Daily Papers 10-29 榜首 · 开源项目+论文对照（ZJU-OmniAI/DTCA） | 扩散语言模型、RL 信用分配、词性查找表、熵流校准 |
+| 2026-10-31 | [Multi-Token Prediction Done Right (Soft-MTP)](2026-10-31-soft-mtp-multi-token-prediction-done-right.md) | arXiv 2610.38331 · HF Daily Papers 10-30 上榜 · MIT（独立作者）· 开源项目+论文对照（JaydenTeoh/Soft-MTP，本文实测 17 项梯度等价测试全过） | MTP、KL 自蒸馏、直通梯度路由、投机解码、预训练免费午餐 |
