@@ -1,0 +1,443 @@
+WEBVTT
+
+00:00.000 --> 00:13.960
+Okay, let's quiet the room again, so we're back to Long Talks, the lighting talks are over.
+
+00:13.960 --> 00:20.520
+And the first one would be on Dynamo, so part of this film and video, and actually the first
+
+00:20.520 --> 00:26.040
+time I heard the Dynamo talk was a few months ago, so it's another albumer, since
+
+00:26.040 --> 00:31.960
+the difference is clear, and actually very curious to hear what changed, what's new.
+
+00:31.960 --> 00:38.800
+So please welcome, daughter, talking about Supercharger and LOM, sort of in this Dynamo.
+
+00:38.800 --> 00:47.360
+Hello, hello everyone, yes, I'm Paul, I'm a software engineer at Nvidia, and I mainly
+
+00:47.360 --> 00:55.120
+contribute to Dynamo, specifically for the design-graded serving part, and as a part of that
+
+00:55.120 --> 01:04.200
+I also contribute to Viel LOM, which is one of the infrasemges that runs under Dynamo.
+
+01:04.200 --> 01:11.560
+So what is like, where does Dynamo place, it plays basically on top of infras frameworks,
+
+01:11.560 --> 01:18.360
+and infrasemges like Viel LOM is DRONK and Lama CPP and others, and this is a serving
+
+01:18.360 --> 01:28.040
+library targeted mainly for large-scale distributed serving, but not exclusively for that.
+
+01:28.040 --> 01:33.160
+And it's actually a collection of libraries, so there's the main one Dynamo, but there are
+
+01:33.160 --> 01:41.400
+a lot of tooling libraries around that, and all of those are open-source, and we already
+
+01:41.480 --> 01:49.680
+have over 200 contributors, and we try, this is mainly not like originally in the Nvidia DNA,
+
+01:49.680 --> 01:57.120
+but we try our best to be, to work in an open source manner as much as possible.
+
+01:57.120 --> 02:05.760
+Yeah, so like the ultimate goal of Dynamo is to speed up the inference and allow large-scale
+
+02:05.840 --> 02:12.080
+inference to run as fast as possible, and this is our main objective, this is taken
+
+02:12.080 --> 02:18.880
+apart from the semi-analysis inference marks benchmark, so basically in the x-axis we have
+
+02:18.880 --> 02:24.240
+how many tokens per second per user can generate, so this is from the perspective of users,
+
+02:24.240 --> 02:29.360
+how fast the tokens are generated for you, and then only y-axis we have how many overall
+
+02:29.440 --> 02:35.680
+tokens per seconds are produced by our system, so this is basically how cheap is the inference,
+
+02:35.680 --> 02:45.360
+right, so we want to be top-right, and we have some success in that matter. So maybe I will just
+
+02:45.360 --> 02:53.120
+quickly preface what was the original motivation to create Dynamo, and it was to allow to create
+
+02:53.360 --> 03:00.160
+an open source framework for disaggregated serving, and basically if someone's not familiar,
+
+03:01.040 --> 03:07.840
+we have two phases of an engeneration one would be to compute the context, which is like pre-feeling,
+
+03:08.640 --> 03:14.080
+and then once we compute the context, the prompt we generate token by token, and those problems are
+
+03:15.280 --> 03:20.880
+computationally very different problems, one is more compute-bound, the decodes is manually bound,
+
+03:21.600 --> 03:28.240
+so we want to optimize them separately, so we need to separate them first, so that solves some
+
+03:28.240 --> 03:34.720
+problems, but creates many, many other problems. One of the points for example is that we create
+
+03:34.720 --> 03:40.560
+different generation, different configuration for pre-feeling, for decode, they can span
+
+03:40.560 --> 03:46.560
+different number of nodes, on the data center, we need to scale them independently, we need to
+
+03:46.560 --> 03:53.520
+route requests between them, transfer, decay, decay between them, and so on, so a lot of work to
+
+03:53.520 --> 04:02.160
+be done to actually make it worthwhile, and why it's so hard in practice to have efficient
+
+04:02.160 --> 04:07.840
+large-scale system is, for example, in the benchmark mentioned both, it was running on
+
+04:07.840 --> 04:16.400
+the 300 GPUs, so we are so need to be able to route between all of those, we need to transfer
+
+04:16.400 --> 04:24.960
+decay between all of those, and the throughput on the front end, on the routers, and so on must
+
+04:24.960 --> 04:32.400
+be, must be really high, right? And also since the models are spanning, sometimes two nodes,
+
+04:32.400 --> 04:38.720
+sometimes eight, 16 nodes for single-inferencing, the photo runs also becomes quite a big
+
+04:38.720 --> 04:46.560
+over problem, we don't want engine failure to compromise our system, and then another one is that
+
+04:46.560 --> 04:54.080
+in practice the load changes over time, right? So that's why the good model is not enough to
+
+04:54.080 --> 04:59.840
+have a successful product, successful deployment, you also need the good system built around it,
+
+05:00.800 --> 05:09.920
+so we can, in fact, serve fast inference, but also tip. So these are the technologies that
+
+05:09.920 --> 05:19.520
+dynamic uses, so going from the top it's main, main design to be deploying Kubernetes,
+
+05:19.520 --> 05:26.640
+not again, it can be extendable, but this is our main news case, then we have the observability layer,
+
+05:27.600 --> 05:32.160
+then we have discovered a plane to discover different dynamo components that also
+
+05:32.160 --> 05:38.000
+have been mainly in Kubernetes, then the components must communicate on the communication planes
+
+05:38.000 --> 05:44.000
+for the communication plane, and then we can run actual inference on the endings, and then we have
+
+05:44.000 --> 05:52.480
+other tooling in dynamo like nix and kvbm to enable kvc transfer and other kvc manipulation
+
+05:52.560 --> 06:02.800
+and optimizations, so these are main components, and we try to be a dynamo to be as modular
+
+06:02.800 --> 06:09.280
+as possible, so basically other than the bottom layer to discover the communication plane,
+
+06:09.280 --> 06:15.520
+you could take out any of other components and work, and you can also implement your own
+
+06:15.520 --> 06:20.960
+components, because basically each main component like previous decode router, front end,
+
+06:20.960 --> 06:28.800
+is basically only an async generator with multi-in and single-out generation generator,
+
+06:28.800 --> 06:34.720
+so that's also for example for inference engine like vl, and it doesn't have a thin
+
+06:35.680 --> 06:42.320
+wrapper on the end because the engine is async generator already, right? So we could go through
+
+06:43.360 --> 06:47.200
+for the components, so maybe some of them will interest you, some other don't,
+
+06:48.160 --> 06:54.480
+they could also some of them be used like planner or router outside of dynamo, for example,
+
+06:54.480 --> 07:04.400
+lmd, which is another inference framework mainly developed by Red Hat, so yeah, so the
+
+07:04.400 --> 07:10.800
+discovery plane, it's very simple when you spawn new components, other components must
+
+07:10.800 --> 07:19.120
+be aware of that, and when some components are scaled down or fails, also other components need
+
+07:19.120 --> 07:24.960
+to be aware of that not to router, and for that we simply use Kubernetes, but also outside of Kubernetes,
+
+07:24.960 --> 07:31.760
+we have a CD implemented as a backend, and for single node or local development, we also have
+
+07:31.840 --> 07:41.120
+simple file system, backend as a discovery plane, not much more there, communication plane,
+
+07:41.120 --> 07:48.960
+this simply TCP protocol to communicate between workers, between components, for example,
+
+07:50.320 --> 07:57.120
+the request, the prompt, the response, and so on, right? Also there's a front end, which is again,
+
+07:58.080 --> 08:08.880
+simply open AI, compatible, front end, again, not much there, I will mention that most of the
+
+08:08.880 --> 08:16.160
+components are written in, and the whole dynamo is written rust, but the public API is maintained
+
+08:16.160 --> 08:23.600
+in Python, so for example, the specific implementation of workers is done in Python already,
+
+08:23.680 --> 08:32.240
+right, but everything underneath here runs on rust, for example, for the front end, so first,
+
+08:32.240 --> 08:43.200
+more sophisticated component would be the router, and basically router's goal is to have as high
+
+08:43.200 --> 08:47.200
+of a cache-hit rate as possible, right, because for example, you are cutting with your
+
+08:47.200 --> 08:55.440
+cloud GPT, and your first quest landed on a specific node, and then you come back two minutes later,
+
+08:55.440 --> 09:00.000
+right, and you want to continue your conversation, so we want to route to the
+
+09:00.000 --> 09:07.680
+probably to the same node, that it has already kbcached from your previous conversation available,
+
+09:07.680 --> 09:15.760
+and not to route somewhere differently to recompute or have to transfer the context from
+
+09:15.760 --> 09:22.240
+different nodes, right, so that's the goal of the router, and there are actually two main variables
+
+09:22.240 --> 09:32.640
+that router act upon, one is the kvindexer.tracks, which which basically which prefix is available
+
+09:32.640 --> 09:39.680
+at which node, and also slot manager, which tracks how busy is a worker, right, because maybe
+
+09:39.680 --> 09:45.920
+cache is available, but worker is too busy to accept new work, right, so that's what the router does,
+
+09:45.920 --> 09:51.760
+so it just combines those two variables with some weight, which would be a tunable parameter,
+
+09:52.960 --> 10:00.800
+but you can also use round robbing or random routing, right, and supposedly it works,
+
+10:00.800 --> 10:08.080
+it enables, we've heard from some customers, it enables much, much improvement in time to first talk
+
+10:08.080 --> 10:18.320
+and basically from higher cache hit rate, then you have the disaggregation self, so for the
+
+10:18.320 --> 10:24.080
+disaggregation menus, the nixelibrary, which is like part of our ecosystem, and nixel is just a
+
+10:24.080 --> 10:28.960
+peer-to-peer communication library, so you'll probably heard about nickel, which will be collective
+
+10:28.960 --> 10:35.360
+communication library from a new video, and nixel is designed to be a peer-to-peer communication
+
+10:35.360 --> 10:41.760
+library with nixelibrary, so you can write your own plugins to support different, for example,
+
+10:41.760 --> 10:49.600
+file system, so we use nixel to communicate between tip-to-tip, but also from tip-to-host memory,
+
+10:49.600 --> 10:57.440
+and from host storage, lock-astorage, or shared network storage, right, so for disaggregation
+
+10:57.520 --> 11:05.440
+menu uses for tip-to-tip communication, so that's how our disaggregated flow looks like,
+
+11:05.440 --> 11:11.840
+so first the request goes to the router, router will pick the best prefil worker to handle,
+
+11:11.840 --> 11:16.320
+though, that request, prefil worker will do, it's think it will compute the context,
+
+11:17.280 --> 11:25.440
+fill the cave cache, and then router will send forward this request to some decode worker,
+
+11:25.440 --> 11:34.160
+which will allocate locally cave blocks, it will meet those cave blocks using nixel from the
+
+11:34.160 --> 11:41.120
+prefil worker, and then to start generating also in form prefil worker, that it can free up the
+
+11:41.120 --> 11:48.000
+decade is already, so this is something, for example, we've implemented together with red-cut team
+
+11:48.000 --> 11:54.640
+in NVLAM, so we added what's called nixel connector and some scheduling optimization to NVLAM,
+
+11:55.440 --> 12:06.720
+we've done similar work with SGLANG and TRT LLAM, okay, so I will mention nixel, also on top of nixel,
+
+12:06.720 --> 12:14.240
+we've built something called KV block manager, and this is also a tool that can be plugged into
+
+12:14.240 --> 12:22.560
+VLAM or SGLANG in form of the cave connector, and it's goal to use the hierarched call memory
+
+12:22.560 --> 12:29.520
+to reduce number of eviction you have to do in the cave cache, right, because for example,
+
+12:29.520 --> 12:34.560
+you will return in one minute, maybe the cave cache will see be there, but if you return to your
+
+12:34.560 --> 12:39.120
+cloud in five minutes, maybe there are so many requests for other users in between,
+
+12:39.120 --> 12:43.760
+that there are no space for the cave's, so they're got thrown away, a victim from the cave cache,
+
+12:44.560 --> 12:51.120
+and now this is to compute that, and yeah, that's costly, right, especially for prefil, it's
+
+12:51.680 --> 12:58.320
+the attention cost is n square, right, in terms of the input size, so we want to first
+
+12:59.440 --> 13:07.840
+instead of evict move from device memory to host memory, then we want to move to local storage,
+
+13:07.840 --> 13:15.680
+and then probably to the network storage, right, if they did the context is long enough,
+
+13:15.680 --> 13:22.560
+and the file system is fast enough, it's still makes sense, sometimes it might take longer
+
+13:22.560 --> 13:27.040
+to read from the external storage, but you still save a ton on the compute, right,
+
+13:28.400 --> 13:35.440
+so that's what cave EM is designed to do, is to extend the life of your cave cache.
+
+13:37.680 --> 13:43.280
+And when you use that, you can again see improvement in time to first talk and because you avoid
+
+13:43.360 --> 13:51.200
+the computation, which is both costly and time consuming, okay, so then we have some
+
+13:52.720 --> 14:01.360
+totally loosely connected with dynamo, that can easily be used outside, like I mentioned before,
+
+14:01.360 --> 14:08.000
+one is plan, right, so one of the challenges I mentioned is that the load of the system is
+
+14:08.000 --> 14:14.640
+staging over time, right, so we can assume there are some peaks, peak R, peak usage hours,
+
+14:15.440 --> 14:23.440
+and we want to scale down profile decode front ends dynamically, preferably, so that's what the plan
+
+14:23.440 --> 14:33.600
+is doing, it's confirmed offline, before start deployment, given SLAs, proposed starting configuration,
+
+14:34.480 --> 14:41.680
+and for that we also have this tool called air configurator, that you can simulate what will
+
+14:41.680 --> 14:49.040
+be the best configuration without even using the GPU, but given hardware and model, we should be able
+
+14:49.040 --> 14:59.680
+to wrap the estimate the best starting configuration, and then in real-time planer will
+
+15:00.400 --> 15:12.320
+scale the decode, preferably, because up and down to satisfy the SLAs, yeah, and for that, again,
+
+15:12.320 --> 15:23.760
+we have small Kubernetes enhancement called growth, and that is used to scale the
+
+15:23.760 --> 15:34.400
+multi-node deployments easily, right, because since for example our inference entry is using
+
+15:34.400 --> 15:42.880
+four nodes, we need to scale the group of nodes together, and that's why we also develop this
+
+15:42.880 --> 15:50.000
+growth, so for example, maybe you've heard from red hudders leader workerset, this is something similar,
+
+15:50.080 --> 16:00.800
+maybe more tuned to 20 video hardware, so, and to end user experience would be they would create
+
+16:00.800 --> 16:07.120
+some configuration file, they will specify, they want to use front end, and decode worker,
+
+16:07.120 --> 16:15.680
+they will give the dynamo command that they can specify, which model, the parallelization technique,
+
+16:15.680 --> 16:21.680
+and that will be parsed by dynamo operator, that will enhance that with some
+
+16:21.680 --> 16:29.520
+inference entry specific arguments, for example, to handle the setting up master,
+
+16:30.480 --> 16:38.400
+opening master ports, passing master addresses IP address to workers and so on, and that,
+
+16:38.400 --> 16:44.320
+then will be passed to the growth operator that we actually create all of the resources,
+
+16:44.320 --> 16:52.960
+and then deploy them to to your Kubernetes cluster, yeah, a pair of simply a small benchmarking
+
+16:52.960 --> 16:59.680
+library that you can then benchmark your open a endpoint, and then more to express this is another
+
+16:59.680 --> 17:07.840
+very tiny library that we have in our ecosystem, that's meant to quickly help quickly load
+
+17:07.920 --> 17:16.000
+engines, and also developed engines, right? So, yeah, and that's basically all the components,
+
+17:16.640 --> 17:19.200
+that's it, thank you.
+
+17:24.880 --> 17:27.520
+Any questions? We have a couple of minutes.
+
+17:27.600 --> 17:40.720
+Yeah, my question is, how much of it is LLM specific versus more generic to be used with
+
+17:40.720 --> 17:45.840
+reduction models, VLMs? Is it LLM specific?
+
+17:48.480 --> 17:56.880
+No, so one thing is that dynamo is really nothing specific at all, so like dynamo runtime
+
+17:57.120 --> 18:01.840
+itself, so the interface that you can implement for components that we get discovered by each other,
+
+18:02.560 --> 18:08.800
+and then on top of that is what we have already implemented, right? So, we've focused on LLMs,
+
+18:08.800 --> 18:16.720
+but also on multimodal models as well, but there's nothing dynamo itself that's specific to LLMs,
+
+18:16.720 --> 18:17.840
+if that makes sense.
+
+18:17.840 --> 18:28.800
+Any more questions? No, last chance. Thank you. Thank you, brother.
+
