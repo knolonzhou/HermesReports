@@ -40,13 +40,6 @@
    "cash": 273.8,
    "market_value": 733.65,
    "return_pct": 0.745
-  },
-  {
-   "date": "2026-10-30",
-   "equity": 1007.45,
-   "cash": 273.8,
-   "market_value": 733.65,
-   "return_pct": 0.745
   }
  ],
  "trades": [
@@ -69,5 +62,5 @@
    "amount": 82.26
   }
  ],
- "updated_at": "2026-10-30T22:56:51"
+ "updated_at": "2026-10-30T22:59:31"
 }
