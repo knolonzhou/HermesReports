@@ -6,6 +6,22 @@ from collections import defaultdict, Counter
 
 DATE = os.environ.get('SATA_DATE') or time.strftime('%Y-%m-%d')
 MONTH = DATE[5:7]  # e.g. '10'
+# Rolling 14-day window instead of strict calendar month (avoids near-empty
+# reports on day 1-2 of a month). Dates in dataset are MM-DD (no year).
+import datetime as _dt
+_TODAY_MD = DATE[5:]
+def _within_window(md, days=14):
+    try:
+        y = int(DATE[:4])
+        d = _dt.date(y, int(md[:2]), int(md[3:5]))
+        t = _dt.date(y, int(_TODAY_MD[:2]), int(_TODAY_MD[3:5]))
+        delta = (t - d).days
+        if delta < 0:  # wrap: date is from previous year
+            delta = (t - d.replace(year=y - 1)).days
+        return 0 <= delta < days
+    except Exception:
+        return False
+PERIOD_LABEL = '近14天'
 REPO = '/root/HermesReports'
 rows = json.load(open(f'{REPO}/shopping/data/{DATE}-sata-deals.json'))
 
@@ -27,7 +43,7 @@ def band(cap):
 
 BANDS = ['128G', '256G', '512G', '1TB', '2TB', '4TB', '8TB', '16TB+']
 
-month_rows = [r for r in rows if r.get('date') and r['date'][:2] == MONTH]
+month_rows = [r for r in rows if r.get('date') and _within_window(r['date'])]
 good = [r for r in month_rows if r['capacity_gb'] and r.get('plausible')]
 
 
@@ -48,15 +64,15 @@ for r in good:
 L = []
 L.append(f"# SATA3.0 固态硬盘 & 机械硬盘 全网比价大数据报告（{DATE}）\n")
 L.append("> 本报告基于 **什么值得买多平台好价数据库** 程序化抓取解析生成，覆盖京东、天猫/淘宝、拼多多、抖音商城等平台的真实成交爆料价。")
-L.append(f"> 原始好价记录 **{len(rows)} 条**（去重后），其中 {MONTH} 月记录 **{len(month_rows)} 条**，可计入单价排行的有效记录 **{len(good)} 条**。")
+L.append(f"> 原始好价记录 **{len(rows)} 条**（去重后），其中 {PERIOD_LABEL} 记录 **{len(month_rows)} 条**，可计入单价排行的有效记录 **{len(good)} 条**。")
 L.append(f"> 机器可读数据：`shopping/data/{DATE}-sata-deals.csv` / `.json`\n")
 L.append("## 数据概览\n")
 plat = Counter(r['platform'] or '未知' for r in month_rows)
 cat = Counter(r['category'] for r in month_rows)
 L.append("| 维度 | 分布 |")
 L.append("|---|---|")
-L.append(f"| {MONTH}月记录平台分布 | " + "、".join(f"{k} {v} 条" for k, v in plat.most_common()) + " |")
-L.append(f"| 品类分布（{MONTH}月） | " + "、".join(f"{'固态硬盘' if k == 'SSD' else '机械硬盘'} {v} 条" for k, v in cat.most_common()) + " |")
+L.append(f"| {PERIOD_LABEL}记录平台分布 | " + "、".join(f"{k} {v} 条" for k, v in plat.most_common()) + " |")
+L.append(f"| 品类分布（{PERIOD_LABEL}） | " + "、".join(f"{'固态硬盘' if k == 'SSD' else '机械硬盘'} {v} 条" for k, v in cat.most_common()) + " |")
 L.append(f"| 时间跨度 | {min((r['date'] or '99') for r in rows)} ~ {max((r['date'] or '') for r in rows)} |")
 L.append("")
 L.append("> ⚠️ **行情背景**：2026 年存储处于涨价周期——NAND 颗粒合约价一年涨约 5 倍（$0.05→$0.26/GB，什么值得买 10 月日报），机械盘同步大涨。大促期间部分型号略有回落，刚需逢「历史低价/天新低」标记出手，非刚需可比价后等下一波。\n")
@@ -103,7 +119,7 @@ for p in ['京东', '天猫精选', '拼多多', '抖音商城', '淘宝精选',
 
 # ---- Part 4: champions & dynamic recommendations ----
 L.append("\n---\n\n# 第四部分：结论与购买建议\n")
-L.append(f"## 🏆 各容量档性价比冠军（{MONTH} 月实价，下单前核实）\n")
+L.append(f"## 🏆 各容量档性价比冠军（{PERIOD_LABEL}实价，下单前核实）\n")
 champs = []
 for c, label in (('SSD', '固态硬盘'), ('HDD', '机械硬盘')):
     for b in ['128G', '256G', '512G', '1TB', '2TB', '4TB', '8TB', '16TB+']:
