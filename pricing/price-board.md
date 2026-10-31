@@ -1,6 +1,6 @@
 # LLM API 价格看板
 
-> 首次采集：2026-10-23；最近核对：2026-10-31（自动监控，每日更新）。单位：USD / 1M tokens（Qwen 为 CNY，已注明）。
+> 首次采集：2026-10-23；最近核对：2026-11-01（自动监控，每日更新）。单位：USD / 1M tokens（Qwen 为 CNY，已注明）。
 > 来源：openai.com/api/pricing、platform.openai.com/docs/pricing、claude.com/pricing、ai.google.dev/gemini-api/docs/pricing、api-docs.deepseek.com、docs.mistral.ai/inference/pricing、openrouter.ai、help.aliyun.com（百炼，经 developer.aliyun.com 汇总核对）。
 > 变动标记：🔺涨价 / 🔽降价 + 日期。
 
@@ -8,39 +8,39 @@
 
 | 模型 | 厂商 | 输入价/M | 输出价/M | 上下文 | 最后更新 | 备注 |
 |---|---|---|---|---|---|---|
-| GPT-6 Astra | OpenAI | $10.00 | $50.00 | 短ctx；长ctx $20/$75 | 2026-10-31 | 缓存输入 $1.00；旗舰 |
-| GPT-6.1 Sol | OpenAI | $2.00 | $10.00 | 短ctx；长ctx $4/$15 | 2026-10-31 | 缓存输入 $0.10 |
-| GPT-6.1 Terra | OpenAI | $1.00 | $5.00 | 短ctx ≤272K；长ctx $2/$7.50 | 2026-10-31 | 10-27 上架 OpenRouter，现已列入 OpenAI 官方定价页（含 Terra Pro 同价）；缓存输入 $0.05；Batch 半价 $0.50/$2.50 |
-| GPT-6 Luna | OpenAI | $0.10 | $0.50 | 短ctx；长ctx $0.20/$0.75 | 2026-10-31 | 缓存输入 $0.01；最低价大模型之一 |
-| GPT-5.6 Sol | OpenAI | $4.00（促销） | $20.00（促销） | 270K | 2026-10-31 | 原价 $5/$30；促销至少至 2026-11-21 |
-| GPT-5.6 Terra | OpenAI | $2.00 | $12.00 | 270K | 2026-10-31 | 缓存输入 $0.20 |
-| GPT-5.6 Luna | OpenAI | $0.20 | $1.20 | 270K | 2026-10-31 | 缓存输入 $0.02 |
-| GPT-5.3 Codex | OpenAI | $1.75 | $14.00 | — | 2026-10-31 | 代码专用 |
-| Claude Fable 5.1 | Anthropic | $10.00 | $50.00 | 1M | 2026-10-31 | 缓存读 $0.25 / 写 $12.50；长程 agent 旗舰 |
-| Claude Opus 5.5 | Anthropic | $4.00 | $20.00 | 1M | 2026-10-31 | 较 Opus 5 ($5/$25) 便宜 20%；Fast 模式 2x 价 |
-| Claude Sonnet 5.5 | Anthropic | $2.00 | $10.00 | 1M | 2026-10-31 | 缓存读 $0.10；9/1 原定涨至 $3/$15 已取消 |
-| Claude Haiku 5.5 | Anthropic | $0.10 | $0.50 | 1M | 2026-10-31 | >100K 提示词时 $0.50/$2.50 |
-| Claude Sonnet 5（legacy） | Anthropic | $2.00 | $10.00 | 1M | 2026-10-31 | 旧代 |
-| Claude Opus 5（legacy） | Anthropic | $5.00 | $25.00 | 1M | 2026-10-31 | 旧代 |
-| Gemini 4 Argon | Google | $2.00 ⏳ | $10.00 ⏳ | 1M | 2026-10-31 | 限时首发价至 2026-11-30；12-01 起翻倍为 $4/$20 |
-| Gemini 3.8 Flash | Google | $0.75 ⏳ | $3.75 ⏳ | 1M | 2026-10-31 | 限时价至 2026-12-31；2027-01-01 起 $1.50/$7.50 |
-| Gemini 3.1 Pro Preview | Google | $2.00 | $12.00 | ≤200K；>200K $4/$18 | 2026-10-31 | Batch 半价 $1/$6 |
-| Gemini 3.5 Flash-Lite | Google | $0.30 | $2.50 | 1M | 2026-10-31 | 有免费层；Batch $0.15/$1.25 |
-| DeepSeek Flash (V4.1) | DeepSeek | $0.15（闲时） | $0.60（闲时） | 1M | 2026-10-31 | 忙时 $0.30/$1.20；缓存命中低至 $0.003 |
-| DeepSeek V4 Pro | DeepSeek | $0.66（闲时） | $1.98（闲时） | 1M | 2026-10-31 | 忙时 $1.32/$3.96；缓存命中 $0.022 |
-| Qwen3-Max | 阿里百炼 | ¥2.5 | ¥10 | 252K | 2026-10-31 | ⚠️ 10-31 发现已从 help.aliyun.com 官方价目表移除（疑似退役，由 qwen3.8-max ¥12/¥36 接替）；价格为移除前记录：32K 内价；32-128K ¥4/¥16；128-252K ¥7/¥28；Batch 5 折 |
-| Qwen3.5-Plus | 阿里百炼 | ¥0.8 | ¥4.8 | 1M | 2026-10-31 | 128K 内价；128-256K ¥2/¥12；256K-1M ¥4/¥24 |
-| Qwen-Long | 阿里百炼 | ¥0.5 | ¥2 | 10M | 2026-10-31 | Batch 5 折 |
-| Mistral Large 4 | Mistral | 🔽 $0.70（2026-10-29，官方永久降价 ~-49%） | 🔽 $2.10 | 1M | 2026-10-31 | 10-29 开源权重（Le Chonk，1T MoE）发布同日官方定价从 $1.36/$4.18 腰斩；缓存输入 $0.07；Artificial Analysis 测得每任务成本 $2.06（较 preview -63%） |
-| Mistral Medium 3.5 | Mistral | $1.50 | $7.50 | 256K | 2026-10-31 | 缓存输入 9 折省（$0.15）；Batch 半价 |
-| Mistral Large 3 | Mistral | $0.50 | $1.50 | 256K | 2026-10-31 | 缓存输入 $0.05 |
-| Mistral Small 4 | Mistral | $0.15 | $0.60 | 256K | 2026-10-31 | 缓存输入 $0.015 |
-| Ministral 3 8B | Mistral | $0.15 | $0.15 | 262K | 2026-10-31 | 输入输出同价 |
-| Z.ai GLM 5.3（Mistral 平台） | Z.ai/Mistral | $1.40 | $4.40 | — | 2026-10-31 | 🆕 新上架 La Plateforme；缓存输入 $0.14 |
-| Z.ai GLM 5.3 Flash（Mistral 平台） | Z.ai/Mistral | $0.15 | $0.50 | — | 2026-10-31 | 🆕 新上架；缓存输入 $0.03 |
-| Llama 3.3 70B Instruct | Meta (OpenRouter) | $0.10 | $0.32 | 131K | 2026-10-31 | OpenRouter 最低价路由（DeepInfra）；Meta 已无自助 Llama API |
-| Llama 4 Scout | Meta (OpenRouter) | $0.10 | $0.30 | 1.31M | 2026-10-31 | 超长上下文 |
-| Llama 4 Maverick | Meta (OpenRouter) | $0.1875 | $0.6525 | 524K | 2026-10-31 | 多模态输入 |
+| GPT-6 Astra | OpenAI | $10.00 | $50.00 | 短ctx；长ctx $20/$75 | 2026-11-01 | 缓存输入 $1.00；旗舰；11-01 起 FedRAMP 端点 +10%；另有 gpt-6-astra-law 法律版同价促销（至少至 2026-12-31） |
+| GPT-6.1 Sol | OpenAI | $2.00 | $10.00 | 短ctx；长ctx $4/$15 | 2026-11-01 | 缓存输入 $0.10 |
+| GPT-6.1 Terra | OpenAI | $1.00 | $5.00 | 短ctx ≤272K；长ctx $2/$7.50 | 2026-11-01 | 10-27 上架 OpenRouter，现已列入 OpenAI 官方定价页（含 Terra Pro 同价）；缓存输入 $0.05；Batch 半价 $0.50/$2.50 |
+| GPT-6 Luna | OpenAI | $0.10 | $0.50 | 短ctx；长ctx $0.20/$0.75 | 2026-11-01 | 缓存输入 $0.01；最低价大模型之一 |
+| GPT-5.6 Sol | OpenAI | $4.00（促销） | $20.00（促销） | 270K | 2026-11-01 | 原价 $5/$30；促销至少至 2026-11-21 |
+| GPT-5.6 Terra | OpenAI | $2.00 | $12.00 | 270K | 2026-11-01 | 缓存输入 $0.20 |
+| GPT-5.6 Luna | OpenAI | $0.20 | $1.20 | 270K | 2026-11-01 | 缓存输入 $0.02 |
+| GPT-5.3 Codex | OpenAI | $1.75 | $14.00 | — | 2026-11-01 | 代码专用 |
+| Claude Fable 5.1 | Anthropic | $10.00 | $50.00 | 1M | 2026-11-01 | 缓存读 $0.25 / 写 $12.50；长程 agent 旗舰 |
+| Claude Opus 5.5 | Anthropic | $4.00 | $20.00 | 1M | 2026-11-01 | 较 Opus 5 ($5/$25) 便宜 20%；Fast 模式 2x 价 |
+| Claude Sonnet 5.5 | Anthropic | $2.00 | $10.00 | 1M | 2026-11-01 | 缓存读 $0.10；9/1 原定涨至 $3/$15 已取消 |
+| Claude Haiku 5.5 | Anthropic | $0.10 | $0.50 | 1M | 2026-11-01 | >100K 提示词时 $0.50/$2.50 |
+| Claude Sonnet 5（legacy） | Anthropic | $2.00 | $10.00 | 1M | 2026-11-01 | 旧代 |
+| Claude Opus 5（legacy） | Anthropic | $5.00 | $25.00 | 1M | 2026-11-01 | 旧代 |
+| Gemini 4 Argon | Google | $2.00 ⏳ | $10.00 ⏳ | 1M | 2026-11-01 | 限时首发价至 2026-11-30；12-01 起翻倍为 $4/$20 |
+| Gemini 3.8 Flash | Google | $0.75 ⏳ | $3.75 ⏳ | 1M | 2026-11-01 | 限时价至 2026-12-31；2027-01-01 起 $1.50/$7.50 |
+| Gemini 3.1 Pro Preview | Google | $2.00 | $12.00 | ≤200K；>200K $4/$18 | 2026-11-01 | Batch 半价 $1/$6 |
+| Gemini 3.5 Flash-Lite | Google | $0.30 | $2.50 | 1M | 2026-11-01 | 有免费层；Batch $0.15/$1.25 |
+| DeepSeek Flash (V4.1) | DeepSeek | $0.15（闲时） | $0.60（闲时） | 1M | 2026-11-01 | 忙时 $0.30/$1.20；缓存命中低至 $0.003；Search/Fetch 免费期已结束，11-01 北京时间起 $0.75/千次 |
+| DeepSeek V4 Pro | DeepSeek | $0.66（闲时） | $1.98（闲时） | 1M | 2026-11-01 | 忙时 $1.32/$3.96；缓存命中 $0.022 |
+| Qwen3-Max | 阿里百炼 | ¥2.5 | ¥10 | 252K | 2026-11-01 | ⚠️ 10-31 发现已从 help.aliyun.com 官方价目表移除（疑似退役，由 qwen3.8-max ¥12/¥36 接替）；价格为移除前记录：32K 内价；32-128K ¥4/¥16；128-252K ¥7/¥28；Batch 5 折 |
+| Qwen3.5-Plus | 阿里百炼 | ¥0.8 | ¥4.8 | 1M | 2026-11-01 | 128K 内价；128-256K ¥2/¥12；256K-1M ¥4/¥24 |
+| Qwen-Long | 阿里百炼 | ¥0.5 | ¥2 | 10M | 2026-11-01 | Batch 5 折 |
+| Mistral Large 4 | Mistral | 🔽 $0.70（2026-10-29，官方永久降价 ~-49%） | 🔽 $2.10 | 1M | 2026-11-01 | 10-29 开源权重（Le Chonk，1T MoE）发布同日官方定价从 $1.36/$4.18 腰斩；缓存输入 $0.07；Artificial Analysis 测得每任务成本 $2.06（较 preview -63%） |
+| Mistral Medium 3.5 | Mistral | $1.50（记录价） | $7.50（记录价） | 256K | 2026-11-01 | ⚠️ 10-31 官方发布弃用公告：已停列 docs.mistral.ai 定价页，弃用日 2026-10-31、退役日 2027-04-30，官方替代 Mistral Large 4（$0.70/$2.10，反而更便宜）；价格为移除前记录 |
+| Mistral Large 3 | Mistral | $0.50（记录价） | $1.50（记录价） | 256K | 2026-11-01 | ⚠️ 10-31 官方发布弃用公告：已停列定价页，弃用日 2026-10-31、退役日 2027-04-30，替代 Mistral Large 4；价格为移除前记录 |
+| Mistral Small 4 | Mistral | $0.15 | $0.60 | 256K | 2026-11-01 | 缓存输入 $0.015 |
+| Ministral 3 8B | Mistral | $0.15 | $0.15 | 262K | 2026-11-01 | 输入输出同价 |
+| Z.ai GLM 5.3（Mistral 平台） | Z.ai/Mistral | $1.40 | $4.40 | — | 2026-11-01 | 🆕 新上架 La Plateforme；缓存输入 $0.14 |
+| Z.ai GLM 5.3 Flash（Mistral 平台） | Z.ai/Mistral | $0.15 | $0.50 | — | 2026-11-01 | 🆕 新上架；缓存输入 $0.03 |
+| Llama 3.3 70B Instruct | Meta (OpenRouter) | $0.10 | $0.32 | 131K | 2026-11-01 | OpenRouter 最低价路由（DeepInfra）；Meta 已无自助 Llama API |
+| Llama 4 Scout | Meta (OpenRouter) | $0.10 | $0.30 | 1.31M | 2026-11-01 | 超长上下文 |
+| Llama 4 Maverick | Meta (OpenRouter) | $0.1875 | $0.6525 | 524K | 2026-11-01 | 多模态输入 |
 
 ## 通用折扣机制速查
 
@@ -53,7 +53,13 @@
 | 阿里百炼 | -50% | 缓存命中 ~10% | 新用户 7000 万免费 tokens（90 天） |
 | Mistral | -50% | 缓存输入 -90% | EU 区域推理 +10% |
 
-## 近期限时优惠 / 重要事件（2026-10）
+## 近期限时优惠 / 重要事件（2026-11）
+
+- ✅ ~~DeepSeek Search/Fetch 免费~~：**免费期已结束**，2026-11-01 北京时间 00:00 起 Search/Fetch 均 $0.75/千次（成功请求计费；Harness/Claude Code/Codex 内服务端调用同价）。仍显著低于竞品（Brave $5、Exa $7、Tavily $5-8、Perplexity Sonar $5）。
+- ℹ️ **OpenAI FedRAMP 端点 11-01 起加收 10% uplift**（与数据驻留同规则）；新见 gpt-6-astra-law（法律版，$10/$50 促销价至少至 2026-12-31）与 gpt-6-sol（$2/$10，与 6.1 Sol 同价）列入官方定价页（非基线，仅记录）。
+- ⚠️ **Mistral 弃用公告（10-31）**：Medium 3.5 与 Large 3 同日弃用（退役 2027-04-30），已从官方定价页移除，替代均为 Mistral Large 4（$0.70/$2.10）。另 Z.ai GLM 5.2 已于 10-31 退役（替代 GLM 5.3）。
+- ℹ️ AIMap 记录 10-29 新上架：**Gemini 4 Carbon**（Google 官方渠道，非基线，仅记录）。
+- ⏳ 渠道动态（11-01，非基线）：腾讯 Hy3（OpenRouter）-37.5%；阿里云托管 DeepSeek V4 Flash 0731 / V4.1 Flash 均 -50%（10-30 曾 +100%，来回波动）。
 
 - ℹ️ **OpenAI 定价页新增条目**（10-26 核对发现，非基线模型）：Cyber models 分类 gpt-5.6-cyber（$12.50/$75）；生命科学 gpt-rosalind-research/discovery（$5/$25，受限访问，10-05 起计费）。o1 与 gpt-4o 初版快照已于 10-23 在 API 关停。
 - ⏳ **Gemini 4 Argon 首发价** $2/$10，2026-11-30 截止，12-01 起翻倍 $4/$20（相当于当前 5 折）。

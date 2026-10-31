@@ -1,5 +1,14 @@
 # LLM API 价格变更日志
 
+## 2026-11-01（每日核对）
+- 重新核对 33 行基线模型现价，官方一手源：platform.openai.com/docs/pricing.md（全量抓取解析）、platform.claude.com/docs/en/about-claude/pricing、ai.google.dev/gemini-api/docs/pricing（Last updated 2026-10-30 UTC）、api-docs.deepseek.com/quick_start/pricing（curl 直取 PRICING 表）、docs.mistral.ai/inference/pricing + docs.mistral.ai/models/overview（生命周期表）、OpenRouter /api/v1/models（curl JSON）、help.aliyun.com（qwen3.5-plus / qwen-long 模型页）。**一手官方 token 价与 10-31 基线完全一致，零价格变动。**
+- ⏰ **DeepSeek Search/Fetch 免费期已结束**（今日 11-01 北京时间 00:00 生效）：Search/Fetch 各 $0.75/千次成功请求（Harness/Claude Code/Codex 内服务端调用同价）；失败/空结果/超时不计费，每端点 5 req/s 上限。仍为市场最低价（Brave $5、Exa $7、Tavily $5-8、Perplexity Sonar $5 每千次）。deepseek-flash / deepseek-v4-pro token 价不变（闲时 $0.15/$0.60、$0.66/$1.98）。
+- ⚠️ **Mistral 弃用公告**（models/overview 生命周期表，弃用日 2026-10-31）：Medium 3.5 与 Large 3 同日弃用，退役日 2027-04-30，替代均为 Mistral Large 4（$0.70/$2.10，比两者原价更便宜）；两款已不在官方定价页（价格转记录价）。同日 Z.ai GLM 5.2 退役（替代 GLM 5.3）。另 Mistral Large 4 保持 10-29 降价后永久价 $0.70/$2.10。
+- ℹ️ **OpenAI 定价页新变化**（非基线，仅记录）：11-01 起 FedRAMP 端点加收 10% uplift（与数据驻留同规则）；新见 gpt-6-sol（$2/$10，短ctx，与 6.1 Sol 同价）、gpt-6-rosalind（$15/$75）、gpt-6-astra-law（法律版 $10/$50，促销至少至 2026-12-31）条目；gpt-5.6-cyber（$12.50/$75）、gpt-rosalind（$5/$25）仍在。GPT-5.6 Sol 促销 $4/$20 官方明示至少至 11-21。
+- ✅ 在途优惠核实仍有效：Gemini 4 Argon 首发价 $2/$10（至 11-30，12-01 起翻倍 $4/$20，官方页今日再确认）、Gemini 3.8 Flash $0.75/$3.75（至 12-31，2027 起 $1.50/$7.50）、GPT-5.6 Sol 促销（至 11-21）、Gemini 3.5 Flash-Lite 免费层仍在。
+- ℹ️ Qwen 核对：qwen3.5-plus ¥0.8/¥4.8（≤128K）/¥2/¥12（128-256K）/¥4/¥24（256K-1M）、qwen-long ¥0.5/¥2 均与基线一致（help.aliyun.com 模型页一手核对）；Qwen3-Max 维持"已下架"标注。
+- 近 7 天新闻扫描（web_search + AIMap price-changes 2026-11-01 快照 + polarison/changes + aicostsim/api-pricing-log + llmprices.net）：无新的主流模型官方降价 ≥20%、无新免费层、无新限时折扣。AIMap 11-01 记录的变动均为渠道价：腾讯 Hy3（OpenRouter）-37.5%、Hy4 preview -10%、阿里云托管 DeepSeek V4 Flash 0731 / V4.1 Flash -50%（10-30 刚 +100%，来回波动）、Particle-1（OpenRouter）输入 -80%。AIMap 10-29 记录 Google 官方新上架 **Gemini 4 Carbon**（非基线，仅记录，待明日核价）。Inception Mercury 2/2.5 将于 11-15 退役（迁移 Mercury 3，$0.10/$0.35 首发 5 折、原价 $0.20/$0.70）。
+
 ## 2026-10-31（每日核对）
 - 重新核对 30 行基线模型现价，全部官方一手源：platform.openai.com/docs/pricing + openai.com/api/pricing、platform.claude.com/docs/en/about-claude/pricing、ai.google.dev/gemini-api/docs/pricing（页面 Last updated 2026-10-28 UTC）、api-docs.deepseek.com/quick_start/pricing（curl 直取 PRICING 表）、docs.mistral.ai/inference/pricing、OpenRouter /api/v1/models（curl JSON）、help.aliyun.com/zh/model-studio/model-pricing。**一手官方价与 10-30 基线完全一致，零变动。**
 - ⚠️ **Qwen3-Max 从阿里百炼官方价目表消失**（10-31 核对发现）：help.aliyun.com 千问Max 分区现仅列 qwen3.8-max / qwen3.7-max（均 ¥12/¥36，1M ctx）与 qwen-max（¥2.4/¥9.6），qwen3-max 已无条目，疑似退役并由 qwen3.8-max 接替（第三方站 pricemon 仍挂 ¥2.5/¥10 旧快照，10-10 验证）。看板已标注，价格保留为移除前记录。
