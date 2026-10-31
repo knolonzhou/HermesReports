@@ -128,21 +128,21 @@ flowchart TD
 
 **下一步**：GC 团队的重点是 Automatic Heap Sizing（自动堆大小调整，让 JVM 自己算该给多大堆，不再靠人拍 `-Xmx`）。结合本周另一条消息——JEP 544 AOT 代码编译已瞄准 JDK 28（本栏目 10-26 已报道）——JVM 正在把"需要调优专家"的活一件件收编进默认行为。
 
-🔗 [Inside Java 公告](https://inside.java/2026-10-30/jdk27-gc-changes/) · [Schatzl 技术全文](https://tschatzl.github.io/2026-08-10/jdk27-g1-serial-parallel-gc-changes.html) · [JEP 523](https://openjdk.org/jeps/523)
+🔗 [Inside Java 公告](https://inside.java/2026/10/30/jdk27-gc-changes/) · [Schatzl 技术全文](https://tschatzl.github.io/2026/08/10/jdk27-g1-serial-parallel-gc-changes.html) · [JEP 523](https://openjdk.org/jeps/523)
 
 ![Inside Java JDK 27 GC 变化题图](assets/2026-10-31/inside-java-jdk27-gc.jpg)
 
-*图注：Inside Java 官方题图。* [出处](https://inside.java/2026-10-30/jdk27-gc-changes/)
+*图注：Inside Java 官方题图。* [出处](https://inside.java/2026/10/30/jdk27-gc-changes/)
 
 ### 📰 Java 要闻简报
 
-- **Oracle 发布《Java 安全编码指南》**（inside.java，10-28）：Java 团队官方出品的 secure coding guidelines，覆盖输入校验、反序列化、加密 API 使用等常见坑。在"AI 大量生成 Java 代码"的当下（见今天 Anthropic 那条），有一份官方安全基线让 code review agent 对着查，时机很微妙。[来源](https://inside.java/2026-10-28/java-secure-coding-guidelines/)
+- **Oracle 发布《Java 安全编码指南》**（inside.java，10-28）：Java 团队官方出品的 secure coding guidelines，覆盖输入校验、反序列化、加密 API 使用等常见坑。在"AI 大量生成 Java 代码"的当下（见今天 Anthropic 那条），有一份官方安全基线让 code review agent 对着查，时机很微妙。[来源](https://inside.java/2026/10/28/java-secure-coding-guidelines/)
 
-- **JDK 28 堆外内存分配快 6–18 倍**（inside.java，10-23）：Confined arena（限定作用域的堆外内存池，Arena 是 Foreign Function & Memory API 里管理堆外内存生命周期的对象）的分配路径大优化，基准测试显示分配吞吐提升 6–18 倍。对做网络/存储/序列化的高性能中间件（Netty 类场景）是实打实的利好。[来源](https://inside.java/2026-10-23/confined-pools/)
+- **JDK 28 堆外内存分配快 6–18 倍**（inside.java，10-23）：Confined arena（限定作用域的堆外内存池，Arena 是 Foreign Function & Memory API 里管理堆外内存生命周期的对象）的分配路径大优化，基准测试显示分配吞吐提升 6–18 倍。对做网络/存储/序列化的高性能中间件（Netty 类场景）是实打实的利好。[来源](https://inside.java/2026/10/23/confined-pools/)
 
-- **Spring AI 新增 Message Parts 与"推理回放"**（spring.io blog，10-28）：Spring AI（Spring 官方的 AI 集成框架）支持把模型消息拆成结构化 parts，并能回放 reasoning 模型的思考过程——Java 工程师终于能在 Spring 生态里原生处理"思维链"这类新消息形态，而不是把一切塞进纯文本 string。[来源](https://spring.io/blog/2026-10-28/spring-ai-message-parts-reasoning-replay)
+- **Spring AI 新增 Message Parts 与"推理回放"**（spring.io blog，10-28）：Spring AI（Spring 官方的 AI 集成框架）支持把模型消息拆成结构化 parts，并能回放 reasoning 模型的思考过程——Java 工程师终于能在 Spring 生态里原生处理"思维链"这类新消息形态，而不是把一切塞进纯文本 string。[来源](https://spring.io/blog/2026/10/28/spring-ai-message-parts-reasoning-replay)
 
-- **A Bootiful Podcast 新集：Lukas Eder**（spring.io，10-29）：Spring 团队王牌播客对话 jOOQ 创始人（SQL 生成库作者），聊 Java、SQL 和开发者工具生意。[来源](https://spring.io/blog/2026-10-29/a-bootiful-podcast-lukas-eder)
+- **A Bootiful Podcast 新集：Lukas Eder**（spring.io，10-29）：Spring 团队王牌播客对话 jOOQ 创始人（SQL 生成库作者），聊 Java、SQL 和开发者工具生意。[来源](https://spring.io/blog/2026/10/29/a-bootiful-podcast-lukas-eder)
 
 ---
 
