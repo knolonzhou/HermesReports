@@ -1,0 +1,770 @@
+WEBVTT
+
+00:00.000 --> 00:27.960
+Okay, quite down everyone. The next talk is about to begin, quite, quite down. Okay, good, good, good.
+
+00:27.960 --> 00:34.960
+So it is a great pleasure for me to introduce our next speaker. Ruben came to this Devroom last year and
+
+00:34.960 --> 00:41.200
+did an absolutely amazing presentation on Vulcan and the use of Vulcan and Lama CPP and
+
+00:41.200 --> 00:45.800
+ever since I've been bugging him to keep presenting on that lovely subject and so he agreed
+
+00:45.800 --> 00:50.360
+and so he is taken away Ruben. Thank you.
+
+00:50.360 --> 01:00.360
+All right, so my name is Wilmotlam. I'm now a very fresh machine learning engineer
+
+01:00.360 --> 01:07.360
+from Reddit but this work has, like, my work on Vulcan has mostly happened in my free time,
+
+01:07.360 --> 01:13.360
+actually. It's a great match of that. But I want to, like, briefly introduce what's
+
+01:13.360 --> 01:18.840
+the Vulcan API. Why should you even care about it? Why is it relevant? Just briefly about
+
+01:18.840 --> 01:25.840
+Lama CPP as well, like, then what have we done since last year? There was a ton of work
+
+01:25.840 --> 01:33.840
+on the back and on the Lama CPP back and there's a lot that has changed since then.
+
+01:33.840 --> 01:40.840
+Some benchmarks actually, that show like the part is how does it actually, like, compare to the
+
+01:40.840 --> 01:47.840
+usual suspects for running large language models on GPUs. What are the difficulties that
+
+01:47.840 --> 01:53.840
+are struggling with and that you will also struggle with if you try to use working for some
+
+01:53.840 --> 02:00.840
+of this and the conclusion about, is it worth using, is it worth putting in the time to use
+
+02:00.840 --> 02:07.840
+Vulcan here? So, basically, what is Vulcan? Isn't that a gaming API? So, yes, it's an API
+
+02:07.840 --> 02:19.840
+graphics. You can actually, like, it's a successor to OpenGA and the idea there was to get
+
+02:19.840 --> 02:24.840
+rid of some of the inefficiencies in OpenGA by making it a lot more abstract. And what they
+
+02:24.840 --> 02:33.840
+ended up with is basically, like, a generic interface to GPUs. And so, you can actually use the same
+
+02:33.840 --> 02:43.840
+kind of API codes and the same kind of shader or, quote unquote, kind of code to run on all
+
+02:43.840 --> 02:52.840
+kinds of GPUs, not just the Nvidia, the usual Nvidia graphics start. And so, my interest
+
+02:52.840 --> 02:58.840
+here is mostly about, like, I don't have a huge, like, $200,000 Nvidia servers somewhere.
+
+02:58.840 --> 03:05.840
+I don't have data centers. So, I just have, like, some PC somewhere with an old graphics card.
+
+03:05.840 --> 03:12.840
+How do I make that run in a large language model so that I can run, so that I can actually
+
+03:12.840 --> 03:20.840
+use it for something that I don't want to share with a cloud. So, Vulcan can actually do that.
+
+03:20.840 --> 03:25.840
+You don't actually have to use the graphics part of it. You can just from computer
+
+03:25.840 --> 03:30.840
+class as a replacement for kernel, it's basically the same thing. And that way, you can actually
+
+03:30.840 --> 03:37.840
+use it for machine learning. And what I did was I edited to learn a CPU, like, over two years ago
+
+03:37.840 --> 03:43.840
+now, and it has grown a lot since, um, learn a CPU probably, you should be familiar with
+
+03:43.840 --> 03:49.840
+with, with also talks already about it. So, I'm not going to go to deep into this, but basically
+
+03:49.840 --> 03:54.840
+the idea was that whatever hardware you're playing around somewhere, you should be able
+
+03:54.840 --> 04:00.840
+to run an element. And I'm on it. Of course, what kind of, I'm, you can run, so it depends
+
+04:00.840 --> 04:06.840
+on, like, how much memory you do you have, and how, like, patient are you, with waiting for
+
+04:06.840 --> 04:13.840
+your responses. So, you're a long as you be based on a, like, static graph structure.
+
+04:13.840 --> 04:20.840
+It's, uh, not a different from, like, other approaches we've seen. But the cool thing
+
+04:20.840 --> 04:25.840
+and that has also grown, like, I think since last years, that, uh, it's basically
+
+04:25.840 --> 04:31.840
+abstracted away all of the back end stuff into, uh, something that you can execute on various
+
+04:31.840 --> 04:37.840
+patterns. So, you saw the graph, the compute graph that contains all of the different operations,
+
+04:38.840 --> 04:43.840
+gets sent to a back end, and it can even be split up and sent to multiple back ends. So,
+
+04:43.840 --> 04:49.840
+there's a lot of, like, interesting stuff you can do here. So, there's a lot of, like,
+
+04:49.840 --> 04:54.840
+back ends that currently exist, like, the most relevant ones, of course, like CPU,
+
+04:54.840 --> 05:02.840
+CUDA metal, and Vulkan. The rock M1 for NDS, basically, on top of the CUDA back ends,
+
+05:02.840 --> 05:08.840
+the pre-uses, most of the code from that. And then there's also an open-sear based
+
+05:08.840 --> 05:13.840
+one that's, I think, that in that mobile phones, there's a can for, I think, who are
+
+05:13.840 --> 05:19.840
+away accelerators. There's Web GPU that's, I'm not sure how usable that is yet, which is also
+
+05:19.840 --> 05:25.840
+interesting. And some, like, Blas, as NDS, which is just trying to make the, trying to
+
+05:25.840 --> 05:32.840
+offer large matrix modifications to libraries that are more optimized on the CPU and that,
+
+05:32.840 --> 05:38.840
+in that example. So, what actually happens since last year, one of, I think, the major,
+
+05:38.840 --> 05:46.840
+like, the most important thing we've done is, like, is flash attention. So, probably,
+
+05:46.840 --> 05:52.840
+if you've ever looked into, like, attention and the way it's used in large language models,
+
+05:52.840 --> 05:57.840
+you've also come across flash attention. It's, like, the paper was hugely influential.
+
+05:57.840 --> 06:03.840
+There's multiple versions of it now, like, the usual way to edit, I think, in, in, in,
+
+06:03.840 --> 06:08.840
+PyTorch based projects is to actually use the, like, the, the code from, from specific,
+
+06:08.840 --> 06:14.840
+GitHub repos. So, we have to custom shader there that was, actually, not, I didn't write
+
+06:14.840 --> 06:21.840
+it, that was, just was from a video. There, in last year, I think it, like, the one version of it,
+
+06:21.840 --> 06:27.840
+like, that was Nvidia specific already existed. That's the Cooperative Matrix 2 variant.
+
+06:27.840 --> 06:32.840
+That's some Cooperative matrices, this boycins abstraction for tensor course.
+
+06:32.840 --> 06:40.840
+So, or, or, like, any kind of, like, matrix acceleration. And so, since last year,
+
+06:40.840 --> 06:46.840
+we've, like, we've also worked on the, like, Cooperative Matrix 1, which is the
+
+06:46.840 --> 06:52.840
+Kronos version, which is not specific to Nvidia. So, that is the one that, for example,
+
+06:52.840 --> 06:56.840
+run on modern indie hardware. And, of course, there's also scalar version.
+
+06:56.840 --> 07:02.840
+If the GPU doesn't have any kind of hardware acceleration for matrix multiplications,
+
+07:02.840 --> 07:09.840
+even, we can still run flash attention. It will give you, it will give you, actually,
+
+07:09.840 --> 07:15.840
+a huge increase in performance with, with context that has grown very large.
+
+07:15.840 --> 07:23.840
+That's become incredibly important in modern logic initiatives, because the, because the context
+
+07:23.840 --> 07:30.840
+that these models can support is extremely big. And so, with, with this, you fuse a lot of,
+
+07:30.840 --> 07:35.840
+a lot of operations into one. And so, you do not need huge intermediate buffers.
+
+07:35.840 --> 07:42.840
+And you get, and you can run it in one, like, in one kernel core instead of a bunch of operations.
+
+07:42.840 --> 07:50.840
+So, with something, like, 128K context, you will see a huge difference from using this.
+
+07:50.840 --> 07:58.840
+And so, implementing this was very important. And also, like, making it available to more hardware,
+
+07:58.840 --> 08:06.840
+was also a huge step. And, is one of the things that made, that made us, made a huge difference
+
+08:06.840 --> 08:12.840
+for performance in, in the Vulcan backend. There's still a lot to do there. Like, I've just,
+
+08:12.840 --> 08:18.840
+just over the last few weeks, I've spent time, like, optimizing the AMD, the version running
+
+08:18.840 --> 08:22.840
+on modern AMD hardware. There was, like, I got a ton of performance, all of that.
+
+08:22.840 --> 08:26.840
+I had some crazy reports of people getting, like, four times faster inference from it.
+
+08:26.840 --> 08:32.840
+So, that's, and the same thing, there's probably still a lot of, like, optimization work
+
+08:32.840 --> 08:38.840
+that can be done. So, yeah, for anyone else wants to take a look at it.
+
+08:38.840 --> 08:44.840
+I would be happy not to have to do all of it. So, yeah.
+
+08:44.840 --> 08:52.840
+Another thing that, that's actually, like, one thing, I wanted, like, I worked on, over the last, like, maybe,
+
+08:52.840 --> 08:58.840
+half a year ago or so, is, like, using the PFI, or in eight accelerations that's hard
+
+08:58.840 --> 09:10.840
+to feature, where you have, like, a dot product of, like, a four, like, packed in eights,
+
+09:10.840 --> 09:16.840
+and one, you packed them into one, in 32, you multiply each one, you add that to another
+
+09:16.840 --> 09:22.840
+integer, and you get a result, and all of that happens in a single clock cycle.
+
+09:22.840 --> 09:26.840
+And that's, that's something that's available on some of the GPUs that are not,
+
+09:26.840 --> 09:32.840
+that do not have the hardware to use, like, something that tends, of course, to accelerate
+
+09:32.840 --> 09:38.840
+matrix modifications. And so, this is actually something very interesting for, for
+
+09:38.840 --> 09:46.840
+me, because we mostly focus on quantized models, and the quantization schemes that we're using,
+
+09:46.840 --> 09:54.840
+they make it, they allow you to do a lot of the operations within, like, in eight,
+
+09:54.840 --> 10:00.840
+like, multiplications and additions, so you can actually use this, and also get a lot of,
+
+10:00.840 --> 10:04.840
+like, a big performance increase. We, the hardware that this most affects is, for example,
+
+10:04.840 --> 10:10.840
+Nvidia Pascal, which was the last generation with all tens of course, which does have this
+
+10:10.840 --> 10:16.840
+dot product support, and we also have, like, an AMD, the Vega 20 is very interesting,
+
+10:16.840 --> 10:20.840
+that was one of the, like, secret, you want to do GPU, you want to do, like, GPU,
+
+10:20.840 --> 10:26.840
+acceleration, like, large, for a large range, multi-tone, what are cool accelerators, you
+
+10:26.840 --> 10:32.840
+can import from China from data centers, something that was one of those, was the MI50,
+
+10:32.840 --> 10:36.840
+that's very, got 20, so that's one of the things that profits a lot from this.
+
+10:36.840 --> 10:42.840
+And the inter GPUs also, this is also, like, the fastest, you can,
+
+10:42.840 --> 10:46.840
+other, the most, like, relevant acceleration feature on, in the economist.
+
+10:46.840 --> 10:54.840
+And so, from writing, like, I just had to write this code, like, I had to add this to the code
+
+10:54.840 --> 10:58.840
+once, and it runs on all of these GPUs, and also helped in some other cases,
+
+10:58.840 --> 11:02.840
+with, and so, of course, when usable for other reasons.
+
+11:02.840 --> 11:08.840
+So, one more thing that's very interesting that, primarily, just both of us, has been working
+
+11:08.840 --> 11:12.840
+on this operator fusion. So, in large range, most of you have to turn off, like,
+
+11:12.840 --> 11:16.840
+I mean, this, this example is accepted, exaggerated, I just made up some,
+
+11:16.840 --> 11:22.840
+times, but basically, for each operation, in the models, you often have the pattern that
+
+11:22.840 --> 11:27.840
+you have a big operation, and then a few follow-up, like, small transformations on the same,
+
+11:27.840 --> 11:31.840
+on the same, on the same data, on the result of the big operation.
+
+11:31.840 --> 11:37.840
+If you, if you do that in the, like, in a regular way, then you get, you get some kind of
+
+11:37.840 --> 11:41.840
+dispatch over it, you have to load the memory, you have to do the calculation, you have to
+
+11:41.840 --> 11:45.840
+start, and then you have to load it again, and do another transformation on the same
+
+11:45.840 --> 11:50.840
+data. And so, if you put all of that into the big operation, basically, you can
+
+11:50.840 --> 11:55.840
+save a lot of time by not storing the intermediate result, and by
+
+11:55.840 --> 12:03.840
+dispatching, if you are kind of, or computers. So, that's one optimization.
+
+12:03.840 --> 12:09.840
+That's quite useful, but it's also very specific, like, we don't have a generic way
+
+12:09.840 --> 12:13.840
+of doing this, so you can just, if you add a new model, architecture, and it's
+
+12:13.840 --> 12:19.840
+working, it works differently, you won't immediately do this because the, because
+
+12:19.840 --> 12:23.840
+the operations don't fit what's already implemented in this sense.
+
+12:23.840 --> 12:29.840
+So, the existing fusions won't apply to the new model, and so someone has to go and
+
+12:29.840 --> 12:35.840
+look at the new model, figure out where it's potential for fusion, and then
+
+12:35.840 --> 12:39.840
+actually implemented. So, I thought some cool ideas about how that could be done in
+
+12:39.840 --> 12:43.840
+a more dynamic way, but that's one of the areas that we're still, like, that
+
+12:43.840 --> 12:49.840
+would be interesting to look at, but someone has to find a time, of course.
+
+12:49.840 --> 12:55.840
+There's much more that has happened, so we also got B416 support, which
+
+12:55.840 --> 12:59.840
+wasn't originally in support and working, but got in through extensions.
+
+12:59.840 --> 13:05.840
+There was a lot of work on reducing CPU overhead, so in, in the beginning,
+
+13:05.840 --> 13:11.840
+we had, like, last year, even still, we had, like, kind of try run.
+
+13:11.840 --> 13:15.840
+That way, you had to go through the whole model and figure out how much
+
+13:15.840 --> 13:19.840
+memory we actually need in the temporary compute purpose,
+
+13:19.840 --> 13:23.840
+allocate that, and then run, and then go through the whole graph again,
+
+13:23.840 --> 13:27.840
+and actually run, then actually run the, the computer
+
+13:27.840 --> 13:31.840
+uh, kind of. And then, uh,
+
+13:31.840 --> 13:35.840
+yeah, we found a way to reduce that by,
+
+13:35.840 --> 13:41.840
+by, uh, by doing all of these steps, like, on demand, so you,
+
+13:41.840 --> 13:45.840
+actually basically just wait until all operations are done,
+
+13:45.840 --> 13:47.840
+and then, then, figure out, like,
+
+13:47.840 --> 13:51.840
+resize this purpose, something, and then, uh, continues.
+
+13:51.840 --> 13:55.840
+So there, there was some crazy work on, like, fences, like,
+
+13:55.840 --> 13:59.840
+about, like, basically fences, something you wait for, so you wait for an operation,
+
+13:59.840 --> 14:03.840
+on the GPU to finish, and, uh, someone figured out that,
+
+14:03.840 --> 14:07.840
+if you, actually, just wait until the whole, like, graph has been computed,
+
+14:07.840 --> 14:09.840
+that takes out some of the, like,
+
+14:09.840 --> 14:13.840
+that, uh, that, that for some, uh, the CPU has to wake up again
+
+14:13.840 --> 14:17.840
+after sleeping for so long, that it actually takes quite a bit longer,
+
+14:17.840 --> 14:21.840
+and has to be, and so, that was solved by adding your fence somewhere
+
+14:21.840 --> 14:23.840
+early on the graph, and then busy idling,
+
+14:23.840 --> 14:25.840
+naturally, and so the CPU is actually sleeping at that point.
+
+14:25.840 --> 14:29.840
+Uh, there were also some stable diffusion operators, which isn't, like,
+
+14:29.840 --> 14:31.840
+relevant for large language, uh,
+
+14:31.840 --> 14:33.840
+moderate, but there's also, like,
+
+14:33.840 --> 14:35.840
+it's very cool to be able to run, uh, like,
+
+14:35.840 --> 14:37.840
+very fusion and Vulcan, and, uh,
+
+14:37.840 --> 14:41.840
+huge, like, huge number of all that stuff that happened here.
+
+14:41.840 --> 14:43.840
+So, uh, I want to show some benchmarks here.
+
+14:43.840 --> 14:47.840
+So, uh, on Nvidia, actually, like, uh,
+
+14:47.840 --> 14:51.840
+basically what I've done is just run the same kind of, like,
+
+14:51.840 --> 14:53.840
+the, the llama bench tool that's in the repo,
+
+14:53.840 --> 14:57.840
+and, uh, in this case, on my 3090, and I've run it with a
+
+14:57.840 --> 15:01.840
+good aback and, uh, in the, in the, in the, in the
+
+15:01.840 --> 15:05.840
+than the same thing with Vulcan, on the Y-axis,
+
+15:05.840 --> 15:09.840
+it's, uh, how fast the result was on the X-axis.
+
+15:09.840 --> 15:13.840
+It's how, uh, how much, uh, context was in the KV cache.
+
+15:13.840 --> 15:17.840
+That's actually, exactly where Flash attention becomes extremely important.
+
+15:17.840 --> 15:21.840
+And here you can see that, uh, basically, the Vulcan backend is slower,
+
+15:21.840 --> 15:23.840
+and the CUDA backend, but it's not by much.
+
+15:23.840 --> 15:27.840
+And, actually, other context, uh, it, uh,
+
+15:27.840 --> 15:31.840
+it stays, uh, approximately within that area.
+
+15:31.840 --> 15:35.840
+And, uh, so the performance is actually competitive, although,
+
+15:35.840 --> 15:39.840
+so, uh, there, so you might ask, like, why, why would I use Vulcan if I
+
+15:39.840 --> 15:43.840
+can also just use CUDA, but there are some, some cases
+
+15:43.840 --> 15:45.840
+where that would actually make things a lot easier.
+
+15:45.840 --> 15:49.840
+Uh, for example, if you have, if you already have a game or something
+
+15:49.840 --> 15:53.840
+that you want to integrate AI into, and so, uh, you could now,
+
+15:53.840 --> 15:57.840
+like, add, add CUDA into that, but that would be a huge hassle.
+
+15:57.840 --> 16:01.840
+Or you just use Vulcan, which you've already using for graphics,
+
+16:01.840 --> 16:05.840
+and you can get pretty competitive performance out of that as well.
+
+16:05.840 --> 16:09.840
+So this is prompt processing, so prefer that's, also,
+
+16:09.840 --> 16:13.840
+where the TensorFlow's could use, um, and, uh,
+
+16:13.840 --> 16:15.840
+uh, the same, like, important generation.
+
+16:15.840 --> 16:19.840
+There's also some differences, like, the, in GPTOS, as we're still, like,
+
+16:19.840 --> 16:22.840
+this optimization left to be done with the lagging behind CUDA there,
+
+16:22.840 --> 16:26.840
+but actually there was, like, here on the, on the DeepC2, which is,
+
+16:26.840 --> 16:30.840
+that's actually the, uh, DeepC2's, the architect, that's actually the,
+
+16:30.840 --> 16:32.840
+and 4.7 flash model of the reason one.
+
+16:32.840 --> 16:36.840
+And so for some reason, uh, we actually faster currently in Torpen's generation
+
+16:36.840 --> 16:40.840
+on Vulcan, that I could have, which is quite interesting.
+
+16:40.840 --> 16:44.840
+Um, so, but more interesting for me, personally, is the, uh,
+
+16:44.840 --> 16:48.840
+in the IX-86 years, which is the Strix Halo GPU.
+
+16:48.840 --> 16:51.840
+Uh, you can get that with 128 gigabytes of available VRAM,
+
+16:51.840 --> 16:56.840
+which makes it very interesting for, um, like, a mixture of export models.
+
+16:56.840 --> 17:01.840
+And so here, uh, you, uh, you can see that, uh, on the, on the old Lama,
+
+17:01.840 --> 17:04.840
+it be models, it's actually slightly slower than from processing,
+
+17:04.840 --> 17:09.840
+but in both the huge GPTOS S120B and the, uh, new, like,
+
+17:09.840 --> 17:15.840
+year and 4.7, it's, it outperforms the rock and back and, uh,
+
+17:15.840 --> 17:17.840
+in prom processing.
+
+17:17.840 --> 17:22.840
+And, uh, talking generation, same thing, even in, in the GPTOS S-like case,
+
+17:22.840 --> 17:24.840
+it's actually a big difference there.
+
+17:24.840 --> 17:29.840
+It's, uh, it's the Vulcan back and is currently quite a bit faster here.
+
+17:29.840 --> 17:34.840
+Uh, on the, yeah, on the, like, year and 4.7 slightly behind, um,
+
+17:34.840 --> 17:39.840
+after at longer context, but, uh, faster, lower context, so.
+
+17:39.840 --> 17:41.840
+That's work left to be done there.
+
+17:41.840 --> 17:44.840
+Uh, there are also cases where there's still a lot of work to be done.
+
+17:44.840 --> 17:47.840
+So, uh, there's this, exactly, the very, about 20 thing.
+
+17:47.840 --> 17:51.840
+So, uh, there, you can see that the scalar flight retention is actually,
+
+17:51.840 --> 17:54.840
+the implementation is actually not optimized for the start where it doesn't run,
+
+17:54.840 --> 17:55.840
+where it's, so, really.
+
+17:55.840 --> 18:00.840
+So, why we can, can be faster, for example, in the GPTOS S-case.
+
+18:00.840 --> 18:04.840
+Uh, at zero context, it drops much faster, so it larger context,
+
+18:04.840 --> 18:06.840
+you get much less performance here.
+
+18:06.840 --> 18:11.840
+Um, and talking generation, uh, similar, so it drops to faster,
+
+18:11.840 --> 18:12.840
+so optimization to be done.
+
+18:12.840 --> 18:13.840
+Someone wants to look into it.
+
+18:13.840 --> 18:14.840
+I'm happy to arrive.
+
+18:14.840 --> 18:17.840
+Otherwise, I'm going to have to do that, I guess.
+
+18:17.840 --> 18:22.840
+Um, so actually, uh, another example here is Intel.
+
+18:22.840 --> 18:25.840
+And, uh, I wanted to show this because it lighted.
+
+18:25.840 --> 18:28.840
+It's an example for driver issues that I'm still running into.
+
+18:28.840 --> 18:32.840
+Uh, so you can see that the, that the, like, the resides,
+
+18:32.840 --> 18:36.840
+I got done at much sense, like there's something that actually got faster.
+
+18:37.840 --> 18:40.840
+At larger context, which isn't great.
+
+18:40.840 --> 18:44.840
+And so, uh, basically, this is an example of a driver issue.
+
+18:44.840 --> 18:50.840
+Like, the Intel Linux driver is still like, uh, the Vulcan driver is actually not optimized for this kind of thing.
+
+18:50.840 --> 18:52.840
+And there's a lot to it.
+
+18:52.840 --> 18:55.840
+I'm, I'm having a lot of issues optimizing for it.
+
+18:55.840 --> 18:57.840
+And so that leads to examples like this.
+
+18:57.840 --> 19:01.840
+Um, I've, I've had issues with all drivers at this point.
+
+19:01.840 --> 19:04.840
+Like, I've had, I think I've found bugs in all of them.
+
+19:04.840 --> 19:09.840
+So, uh, that's, uh, yeah, this is, uh, one of the things I'm dealing with here.
+
+19:09.840 --> 19:16.840
+Uh, the other thing that I'm, uh, still, like, yeah, how do I actually optimize a computer,
+
+19:16.840 --> 19:21.840
+and one of the issues I have is for, while Nvidia does provide, um,
+
+19:21.840 --> 19:25.840
+a way like with inside graphics to, to get some inside there.
+
+19:25.840 --> 19:28.840
+Of, for, for, for AMD, I don't have anything like that.
+
+19:28.840 --> 19:33.840
+And for Intel, I don't either, so it's actually a lot of guesswork to optimize a shader here.
+
+19:34.840 --> 19:41.840
+You can apply the same techniques as for CUDA, um, but, uh, AMD doesn't behave the same way as Nvidia.
+
+19:41.840 --> 19:46.840
+And it's much different, so it's actually, yeah, that's, uh,
+
+19:46.840 --> 19:54.840
+I, I had to do like a lot of guessing a lot of trial and error to figure out what is actually fast on what hardware.
+
+19:54.840 --> 20:00.840
+So, yeah, in, in conclusion, for working as very interesting, you can, you can get a lot of performance
+
+20:00.840 --> 20:06.840
+out of it as you've seen. Actually, you can beat some of you proprietary APIs if you put in another work.
+
+20:06.840 --> 20:11.840
+But, uh, the development side is actually much harder than something like CUDA,
+
+20:11.840 --> 20:17.840
+because you have to do a lot of the work on the whole side, uh, a lot more work, a lot of boilerplate,
+
+20:17.840 --> 20:21.840
+to, uh, to actually get any error with working.
+
+20:21.840 --> 20:27.840
+The tooling is limited in comparison, uh, as a lot, like I'm hoping that can be improved in the future.
+
+20:27.840 --> 20:35.840
+Uh, it's, uh, like, uh, out there. Um, the hardware compatibility is much much broader than any other, like, uh,
+
+20:35.840 --> 20:40.840
+any of the other usual APIs, so that's the big advantage. The binary size is something that's often forgotten.
+
+20:40.840 --> 20:46.840
+You actually get much, much smaller binaries, like, uh, if you, if you download PyTorch for CUDA, you get more to
+
+20:46.840 --> 20:51.840
+pre-gegar bytes of device code. If you, in theory, if you do the same thing,
+
+20:51.840 --> 20:58.840
+if you're working, you would have something very small because the code gets compiled to the device specific code on demand,
+
+20:58.840 --> 21:04.840
+during, uh, during the run. And the performance of all you can can actually be very good.
+
+21:04.840 --> 21:11.840
+But, uh, there's always something you cannot do with working, uh, so there's the potential slightly lower,
+
+21:11.840 --> 21:15.840
+but as you've seen, like, you can get actually pretty close.
+
+21:16.840 --> 21:22.840
+Uh, so yeah, so I hope, uh, I've got some interest sitting using working, helping out on the back end,
+
+21:22.840 --> 21:27.840
+or maybe integrating it somewhere else. I hope this, uh, that in future, we can, like, uh,
+
+21:27.840 --> 21:34.840
+use it more often and get to somewhere where we are not as, uh, as limited to one single,
+
+21:34.840 --> 21:41.840
+vendor or one single, like way of, uh, of writing, uh, or where we have to actually write,
+
+21:41.840 --> 21:46.840
+completing new kernels to use a different, uh, different GPU, and not use different hardware.
+
+21:46.840 --> 21:48.840
+So yeah, thank you.
+
+21:48.840 --> 21:51.840
+Thank you.
+
