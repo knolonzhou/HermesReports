@@ -82,6 +82,9 @@ flowchart LR
 ### 📰 Agent 要闻简报
 
 - **⚠️ VOLTA 窃密木马让 LLM 给受害者"估价"：偷完数据后交给 AI 排序哪个最值钱**（Cisco Talos，10-31）：这个自删除的 Windows infostealer（信息窃取木马）偷完浏览器密码、cookie、加密货币钱包、SSH 密钥后，会把受害者的地理位置、雇主、出生年份推断、Roblox 账号估值等打包成结构化档案，POST 给 OpenRouter（LLM API 中转站），系统提示词要求模型扮演"法证情报分析师"，输出必须有"WHAT THEY'RE WORTH"（按可变现价值分低/中/高档）和"THEIR OPSEC"（受害者安全习惯评估）两节。默认模型是 Claude Opus 4.6，被拒绝时自动降级换 Kimi K2 → Gemini 2.5 Flash 三模型链——**说明攻击者对"模型会拒绝"有工程化预案**。还利用偷来的会话反查 Gmail 购物收据、UberEats 订单来核实住址。这是"AI 不是帮黑客写代码，而是当犯罪团伙的情报分析员"的典型案例。[来源](https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/)
+
+![VOLTA 窃密木马工作流](assets/2026-11-01/volta-workflow.jpg)
+*图：Talos 绘制的 VOLTA-AUTODOXER 工作流（窃取→打包档案→LLM 估价→三模型降级链）。图源：[Cisco Talos Blog](https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/)*
 - **Cisco 给 27 岁工程师"无限 AI token"重写遗留代码**（Fortune，10-30，HN 263 分）：Cisco 总裁 Jeetu Patel 讲的故事——一名 Gen Z 工程师拿到不限量 AI 额度去啃公司老代码，Patel 借此论证"入门级岗位会被重构"。HN 评论两极：一方认为这是遗留代码现代化的正确杠杆（老代码没人愿意碰、文档缺失，恰是 LLM 最能补人力的地方）；另一方指出"无限 token"叙事掩盖了审查瓶颈——AI 改遗留代码的产出速度远超人类 review 速度，风险只是被转移不是被消除。[来源](https://fortune.com/2026/10/30/cisco-president-jeetu-patel-gen-z-27-year-old-unlimited-ai-tokens-rewrite-legacy-code-entry-level-jobs/)
 - **arXiv：JevAct——给 agent 的危险动作加一道"决策门"**：agent 通过工具执行有后果的动作（发消息、删文件、转账）时往往没有独立核查。JevAct 在执行前拦截选定动作：把领域策略编译成可执行的状态检查 + 结构化问题，交给一个"只做 prefill、不做生成"的小判定模型出概率化判断——确定性事实核查 + 概率化意图评估双保险，还支持反馈驱动的纠正。与 PageBreak 是同一哲学：**不信任 agent 的自我声明，用外部廉价机制把关**。[arXiv](https://arxiv.org/abs/2610.38620)
 - **arXiv：ATP（Agent Transfer Protocol）——给跨组织 agent 通信设计"邮局"**：不同公司的 agent 要长期协作，但对方实例可能离线、IP 会变、消息要能验证来源。ATP 提出服务器中介的 agent 间通信架构：稳定的通信入口、离线代收、延迟阅读后的来源验证——相当于给 agentic web 设计 SMTP/邮箱体系。MCP 解决"agent↔工具"，A2A 解决"agent↔agent 即时对话"，ATP 瞄准的是"agent↔agent 异步长程通信"这块空白。[arXiv](https://arxiv.org/abs/2610.38398)
