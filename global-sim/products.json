@@ -1,0 +1,74 @@
+{
+  "name": "全球配置产品池",
+  "description": "大陆居民可通过沪深交易所购买的跨境/商品/债券ETF，非A股标的，数据源：腾讯财经实时行情",
+  "last_verified": "2026-10-30",
+  "categories": {
+    "美股QDII": {
+      "description": "跟踪美国股票指数的QDII ETF，用人民币购买，T+0交易",
+      "products": [
+        {"code": "513100", "name": "纳指ETF国泰", "track": "纳斯达克100", "price": 2.24, "note": "规模最大纳指ETF"},
+        {"code": "159941", "name": "纳指ETF广发", "track": "纳斯达克100", "price": 1.65, "note": "深市纳指，流动性好"},
+        {"code": "159509", "name": "纳指科技ETF景顺", "track": "纳斯达克科技", "price": 3.00, "note": "聚焦科技巨头"},
+        {"code": "159632", "name": "纳斯达克ETF华安", "track": "纳斯达克100", "price": 2.43, "note": ""},
+        {"code": "513500", "name": "标普500ETF博时", "track": "标普500", "price": 2.66, "note": "规模最大的标普ETF"},
+        {"code": "513650", "name": "标普500ETF南方", "track": "标普500", "price": 1.98, "note": ""}
+      ]
+    },
+    "欧洲QDII": {
+      "description": "跟踪欧洲发达市场指数的QDII ETF",
+      "products": [
+        {"code": "513030", "name": "德国ETF华安", "track": "德国DAX30", "price": 1.79, "note": "欧洲最大经济体"},
+        {"code": "513080", "name": "法国ETF华安", "track": "法国CAC40", "price": 1.62, "note": "含LVMH/爱马仕等奢侈品"}
+      ]
+    },
+    "亚太QDII": {
+      "description": "跟踪亚太地区指数的QDII ETF",
+      "products": [
+        {"code": "513520", "name": "日经ETF华夏", "track": "日经225", "price": 2.18, "note": ""},
+        {"code": "513880", "name": "日经225ETF华安", "track": "日经225", "price": 2.06, "note": ""},
+        {"code": "513310", "name": "中韩半导体ETF", "track": "中韩半导体", "price": 3.70, "note": "三星/SK海力士"},
+        {"code": "513730", "name": "东南亚科技ETF", "track": "泛东南亚科技", "price": 0.99, "note": "新加坡/印尼/泰国/越南/马来西亚/印度"}
+      ]
+    },
+    "新兴市场QDII": {
+      "description": "跟踪中东、南美、南亚等新兴市场的QDII ETF",
+      "products": [
+        {"code": "159329", "name": "沙特ETF南方", "track": "富时沙特", "price": 0.81, "note": "2024年首发"},
+        {"code": "520830", "name": "沙特ETF华泰柏瑞", "track": "富时沙特", "price": 0.81, "note": ""},
+        {"code": "164824", "name": "印度基金LOF", "track": "印度市场", "price": 1.23, "note": "LOF，非严格ETF"}
+      ]
+    },
+    "港股跨境ETF": {
+      "description": "跟踪香港市场的跨境ETF，不含A股公司",
+      "products": [
+        {"code": "159920", "name": "恒生ETF华夏", "track": "恒生指数", "price": 1.36, "note": "港股大盘"},
+        {"code": "513660", "name": "恒生ETF华夏沪", "track": "恒生指数", "price": 1.36, "note": "沪市版本"},
+        {"code": "513180", "name": "恒生科技ETF华夏", "track": "恒生科技", "price": 0.47, "note": "腾讯/阿里/美团等"},
+        {"code": "513050", "name": "中概互联网ETF", "track": "中概互联", "price": 0.93, "note": "美股中概+港股互联"}
+      ]
+    },
+    "商品ETF": {
+      "description": "跟踪大宗商品价格的ETF，黄金/原油/农产品",
+      "products": [
+        {"code": "518880", "name": "黄金ETF华安", "track": "上海金", "price": 8.12, "note": "规模最大(976亿)"},
+        {"code": "518800", "name": "黄金ETF国泰", "track": "上海金", "price": 8.51, "note": ""},
+        {"code": "159937", "name": "黄金ETF博时", "track": "上海金", "price": 8.09, "note": ""},
+        {"code": "159934", "name": "黄金ETF易方达", "track": "上海金", "price": 8.48, "note": ""},
+        {"code": "159985", "name": "豆粕ETF华夏", "track": "豆粕期货", "price": 2.15, "note": "唯一农产品商品ETF"},
+        {"code": "162411", "name": "华宝油气LOF", "track": "标普油气上游", "price": 1.06, "note": "高波动"},
+        {"code": "501018", "name": "南方原油LOF", "track": "原油期货", "price": 2.30, "note": "高波动"},
+        {"code": "159980", "name": "有色ETF大成", "track": "有色金属期货", "price": 2.10, "note": "铜铝锌镍等"}
+      ]
+    },
+    "债券ETF": {
+      "description": "跟踪债券指数的低风险固收ETF",
+      "products": [
+        {"code": "511010", "name": "国债ETF国泰", "track": "5年期国债", "price": 141.12, "note": "低风险打底"},
+        {"code": "511260", "name": "十年国债ETF", "track": "10年期国债", "price": 135.33, "note": "流动性好"},
+        {"code": "511090", "name": "30年国债ETF", "track": "30年期国债", "price": 120.27, "note": "长久期高波动"},
+        {"code": "511520", "name": "政金债ETF富国", "track": "政策性金融债", "price": 119.54, "note": "准主权信用"},
+        {"code": "159649", "name": "国开债ETF华安", "track": "国开行债券", "price": 110.76, "note": ""}
+      ]
+    }
+  }
+}
