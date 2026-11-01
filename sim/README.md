@@ -12,7 +12,7 @@
 | 文件 | 是什么 | 谁写的 |
 |---|---|---|
 | **[DASHBOARD.md](DASHBOARD.md)** | **动态看板**：盈亏曲线图、仓位构成、交易流水、每日纪律检查、决策逻辑 | `dashboard.py` 自动生成 |
-| [assets/](assets/) | 看板用的 4 张图（净值曲线/每日盈亏/仓位构成/盘中走势） | `dashboard.py` 自动生成 |
+| [assets/](assets/) | 看板用的 5 张图（**趋势图**/净值曲线/每日盈亏/仓位构成/盘中走势） | `dashboard.py` + `trend_chart.py` 自动生成 |
 | [journal.md](journal.md) | 每日操作日志（决策理由全文） | `sim.py daily` 追加 |
 | [portfolio.json](portfolio.json) | 机器可读账本（持仓、历史净值、交易流水） | `sim.py` 维护 |
 | [intraday.csv](intraday.csv) | 盘中每 30 分钟净值快照（画盘中曲线用） | `sim_snapshot_cron.py` |
