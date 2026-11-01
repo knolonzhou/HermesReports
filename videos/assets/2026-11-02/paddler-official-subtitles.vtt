@@ -1,0 +1,1079 @@
+WEBVTT
+
+00:00.000 --> 00:13.440
+Okay, so the next talk is from guys from Padler.
+
+00:13.440 --> 00:16.400
+They actually have done it all across the year as well.
+
+00:16.400 --> 00:23.000
+So, a part of this year would be about what happened during this last year.
+
+00:23.000 --> 00:29.000
+So, welcome, so, my question is heating.
+
+00:30.000 --> 00:36.000
+Hello, nice to meet you.
+
+00:36.000 --> 00:38.000
+We are extremely happy to be here.
+
+00:38.000 --> 00:41.000
+My name is Mateur, this is Gosha and Miguel.
+
+00:41.000 --> 00:44.000
+And we are co-authors of Padler.
+
+00:44.000 --> 00:47.000
+Which is a tool for a self-hosting lens.
+
+00:47.000 --> 00:50.000
+We are all in the Lama CP ecosystem.
+
+00:50.000 --> 00:54.000
+We have introduced Padler last year here on Phosphum.
+
+00:54.000 --> 00:58.000
+And now, we wanted to talk about what worked for us,
+
+00:58.000 --> 01:02.000
+what didn't work, what works well with hosting models or not.
+
+01:02.000 --> 01:04.000
+Because I think we have this kind of unique perspective,
+
+01:04.000 --> 01:07.000
+because we are working both on the infrastructure,
+
+01:07.000 --> 01:12.000
+but we are also creating products for casual end users.
+
+01:12.000 --> 01:18.000
+And generally, we can see two paths that open-source elements can take.
+
+01:18.000 --> 01:21.000
+And one of them is doing hobby projects,
+
+01:21.000 --> 01:24.000
+and we need topics that are only relevant to us.
+
+01:24.000 --> 01:26.000
+Which is fine, of course.
+
+01:26.000 --> 01:29.000
+But we also notice that LMS, an open source,
+
+01:29.000 --> 01:34.000
+LMS have this potential of being this experimental frontier
+
+01:34.000 --> 01:36.000
+for research for products.
+
+01:36.000 --> 01:39.000
+I wanted to focus on this more.
+
+01:39.000 --> 01:45.000
+So, Padler, we wanted to create a tool that can show that Lama CPP
+
+01:45.000 --> 01:48.000
+can be used successfully in production at a scale.
+
+01:48.000 --> 01:51.000
+That it can, we can use to the fullest its potential.
+
+01:51.000 --> 01:54.000
+The fact that it can run anywhere.
+
+01:54.000 --> 02:00.000
+Because we also initially saw a third path with us privacy.
+
+02:00.000 --> 02:04.000
+But unfortunately, most businesses just don't care about it too much.
+
+02:04.000 --> 02:06.000
+I'm not judging it, but this is the fact.
+
+02:06.000 --> 02:10.000
+I mean, most businesses we approached would rather use
+
+02:10.000 --> 02:16.000
+some big vendor like OpenAI or Claude or whatever themselves host.
+
+02:16.000 --> 02:19.000
+Which, again, it is what it is.
+
+02:19.000 --> 02:24.000
+But still, I do think open source LMS has this great potential
+
+02:24.000 --> 02:28.000
+as this experimental research frontier.
+
+02:28.000 --> 02:32.000
+So, in this context, where does Padler fit in?
+
+02:32.000 --> 02:37.000
+So, Padler is our open source software that allows
+
+02:37.000 --> 02:40.000
+to self-host large language models.
+
+02:40.000 --> 02:44.000
+And we have been developing it with the thought of having something
+
+02:44.000 --> 02:48.000
+which is very easy to handle that follows the best LMS practices
+
+02:48.000 --> 02:52.000
+and that you can deploy it anywhere as well.
+
+02:52.000 --> 02:58.000
+So, there are several environments that you can put Padler in.
+
+02:58.000 --> 03:03.000
+You can use that on your premises, on your server racks,
+
+03:03.000 --> 03:06.000
+or even on the cloud if you really want to.
+
+03:06.000 --> 03:09.000
+And if you got really clever with the idea of Padler,
+
+03:09.000 --> 03:13.000
+you can even use that to create some company-wide second-brain.
+
+03:13.000 --> 03:16.000
+So, everyone in the same office would be able to connect
+
+03:16.000 --> 03:20.000
+to the same Padler balancing stance and share the resources.
+
+03:20.000 --> 03:25.000
+So, this venue here, for example, everyone would be able to connect
+
+03:25.000 --> 03:29.000
+and share the same computational powers by using Padler.
+
+03:29.000 --> 03:32.000
+And that's very interesting.
+
+03:32.000 --> 03:36.000
+And talking about Claude, we are actually using Padler on the cloud.
+
+03:36.000 --> 03:41.000
+And there are some features that we have created to make such deployments easy.
+
+03:41.000 --> 03:46.000
+Like, you can use your metrics from the Padler status D
+
+03:46.000 --> 03:50.000
+to, in the case of AWS for example,
+
+03:50.000 --> 03:56.000
+set some cloud watch rules to bring more or less GPU instances in if you need.
+
+03:56.000 --> 03:59.000
+And the cloud where actually one of our priorities,
+
+03:59.000 --> 04:02.000
+because even on the cloud, you can have some benefits
+
+04:02.000 --> 04:06.000
+over using your own infrastructure.
+
+04:06.000 --> 04:10.000
+And with Padler, you can even set some
+
+04:10.000 --> 04:14.000
+multicloud setups where you keep your Padler
+
+04:14.000 --> 04:19.000
+a balancer on AWS, but keeping your agents on OVH, for example,
+
+04:19.000 --> 04:21.000
+or any other kind of cloud.
+
+04:21.000 --> 04:23.000
+So, that's very nice.
+
+04:23.000 --> 04:32.000
+So, initially Padler started as just Lama CPP load balancer.
+
+04:32.000 --> 04:35.000
+But since then, we evolved a lot, changed a lot.
+
+04:35.000 --> 04:39.000
+We still keep Lama CPP, but just as an inference engine,
+
+04:39.000 --> 04:41.000
+inside Padler, so now it is baked in,
+
+04:41.000 --> 04:44.000
+there were several reasons for it.
+
+04:44.000 --> 04:47.000
+One of them is, we needed semantic versioning
+
+04:47.000 --> 04:50.000
+to do like predictable deployments.
+
+04:50.000 --> 04:55.000
+Lama CPP has a rolling release, which is fine, has its marries,
+
+04:55.000 --> 05:00.000
+but we needed to have this ability to limit
+
+05:00.000 --> 05:03.000
+to have back what's compatibility or to,
+
+05:03.000 --> 05:06.000
+like, have predictable deployments of predictable versioning.
+
+05:06.000 --> 05:08.000
+So, that was important to us.
+
+05:08.000 --> 05:12.000
+Second, we have this liberty of adding more custom features.
+
+05:12.000 --> 05:16.000
+Initially, we relied mostly of Lama Server HTTP
+
+05:16.000 --> 05:19.000
+and points to monitor its status, its internals.
+
+05:19.000 --> 05:23.000
+But now, we are using C++ by next directly.
+
+05:23.000 --> 05:26.000
+It's baked in, so Padler is also easier to deploy.
+
+05:26.000 --> 05:30.000
+Thanks to that, because it is contained in just a single
+
+05:30.000 --> 05:33.000
+binary that you can put in a server on a laptop.
+
+05:33.000 --> 05:36.000
+So, it's very simple to handle.
+
+05:36.000 --> 05:41.000
+You can argue that we decoupled from Lama CPP server
+
+05:41.000 --> 05:45.000
+and stuff, but now we rely on C++ bindings.
+
+05:45.000 --> 05:48.000
+But still, it is much easier to maintain Padler that way.
+
+05:48.000 --> 05:52.000
+We can, for example, pick some specific snapshot of Lama CPP
+
+05:52.000 --> 05:57.000
+to make sure it works correctly, release it with semantic versioning
+
+05:57.000 --> 05:59.000
+and so on.
+
+05:59.000 --> 06:02.000
+There was also another reason, because at one point,
+
+06:02.000 --> 06:03.000
+there were deemed slots.
+
+06:03.000 --> 06:06.000
+Feature of the stamping issue didn't really use in production.
+
+06:06.000 --> 06:08.000
+But we were using it a lot in production.
+
+06:08.000 --> 06:10.000
+So, we pretty much had no choice.
+
+06:10.000 --> 06:13.000
+At that point, we just rewrote it and slots.
+
+06:13.000 --> 06:17.000
+I mean, the feature that allows you to divide context,
+
+06:17.000 --> 06:21.000
+memory context into several slots to handle request
+
+06:21.000 --> 06:22.000
+inference requests in Padler.
+
+06:22.000 --> 06:25.000
+It's something really crucial to us.
+
+06:25.000 --> 06:31.000
+I think we must have done something right, because we got some positive feedback
+
+06:31.000 --> 06:32.000
+from you from the community.
+
+06:32.000 --> 06:34.000
+And I'm especially grateful for that.
+
+06:34.000 --> 06:36.000
+I'm especially grateful that it was to us.
+
+06:36.000 --> 06:40.000
+I know it is not easy to put your production service on some open source
+
+06:40.000 --> 06:42.000
+projects from some guys, random people.
+
+06:42.000 --> 06:44.000
+So, I mean, thank you for that.
+
+06:44.000 --> 06:47.000
+And we treat this seriously, because we really want to take
+
+06:47.000 --> 06:50.000
+make sure that, I know, memory, existable.
+
+06:50.000 --> 06:51.000
+It can run anywhere.
+
+06:51.000 --> 06:53.000
+So, thank you again.
+
+06:53.000 --> 06:59.000
+And this is kind of a tool of our UI and some work capabilities.
+
+07:00.000 --> 07:02.000
+We have this work admin panel.
+
+07:02.000 --> 07:04.000
+We try to make it really accurate.
+
+07:04.000 --> 07:07.000
+So, it represents the really how the system works.
+
+07:07.000 --> 07:09.000
+So, it always shows you in real time how many slots
+
+07:09.000 --> 07:13.000
+we keep either the inference addresses that and so on.
+
+07:13.000 --> 07:15.000
+And we use it in various ways.
+
+07:15.000 --> 07:17.000
+We use it in production.
+
+07:17.000 --> 07:18.000
+We use it locally.
+
+07:18.000 --> 07:21.000
+So, for example, sometimes when we work together,
+
+07:21.000 --> 07:23.000
+we connect to the same wife.
+
+07:23.000 --> 07:25.000
+For example, Goshia has a Mac.
+
+07:25.000 --> 07:26.000
+We've unified memory.
+
+07:26.000 --> 07:27.000
+She can load bigger models.
+
+07:28.000 --> 07:30.000
+And we can assign like eight slots to her Mac.
+
+07:30.000 --> 07:33.000
+Like it was close to mind PC.
+
+07:33.000 --> 07:35.000
+So, we use it like that locally.
+
+07:35.000 --> 07:38.000
+Nice thing about it is, when you deploy something,
+
+07:38.000 --> 07:41.000
+you need some staging environment, some production environment.
+
+07:41.000 --> 07:44.000
+So, Lama Cvp can run on anything.
+
+07:44.000 --> 07:48.000
+So, you can assign some agents to like cheaper CPU instances
+
+07:48.000 --> 07:51.000
+and staging, when you don't need to have as many users, for example.
+
+07:51.000 --> 07:54.000
+And you can assign it to GPU instances on in production.
+
+07:55.000 --> 07:58.000
+We also have features for scaling like buffer requests.
+
+07:58.000 --> 08:00.000
+We expose them data for stats these.
+
+08:00.000 --> 08:02.000
+So, you can automate the process.
+
+08:04.000 --> 08:08.000
+And this is the panel for loading models with parameters.
+
+08:08.000 --> 08:12.000
+So, we support about hugging phase and local files.
+
+08:12.000 --> 08:17.000
+And so, you can either provide a link to the GF model on the hugging phase
+
+08:17.000 --> 08:19.000
+we use hugging phase API.
+
+08:19.000 --> 08:23.000
+Or you can just deploy the model on the server and set the parameters.
+
+08:23.000 --> 08:27.000
+So, some of those parameters are local to Lama Cvp.
+
+08:27.000 --> 08:29.000
+Some of them are local to padler.
+
+08:29.000 --> 08:32.000
+But you wanted to collect them in this single place.
+
+08:32.000 --> 08:36.000
+So, you can just change all of them with a single API request.
+
+08:36.000 --> 08:41.000
+And what I think is interesting, we try to follow hugging phase conventions
+
+08:41.000 --> 08:46.000
+because often model authors put parameters.
+
+08:46.000 --> 08:48.000
+In red means it is in specific way.
+
+08:48.000 --> 08:52.000
+And they put some specific parameters recommended for their models.
+
+08:52.000 --> 08:56.000
+So, if you deploy something, you can pretty much copy paste them.
+
+08:58.000 --> 09:00.000
+We also have a feature.
+
+09:00.000 --> 09:02.000
+So, you can provide your own chat template.
+
+09:02.000 --> 09:07.000
+Because they are often baked in into GGF models as a metadata.
+
+09:07.000 --> 09:10.000
+But I don't know, let's say,
+
+09:10.000 --> 09:14.000
+in the template exchange, it doesn't support some obscure feature
+
+09:14.000 --> 09:17.000
+that the template in the model uses.
+
+09:17.000 --> 09:21.000
+You had least have a chance to do some work around or anything.
+
+09:21.000 --> 09:24.000
+So, you don't have your hands tied.
+
+09:24.000 --> 09:26.000
+Because, you know, situations happen.
+
+09:26.000 --> 09:30.000
+And we really want to feel comfortable deploying this to production.
+
+09:30.000 --> 09:35.000
+And you can preview, of course, how the model works.
+
+09:35.000 --> 09:38.000
+So, this specific model has a thinking phase.
+
+09:38.000 --> 09:41.000
+So, we also try to look nice by the way.
+
+09:41.000 --> 09:45.000
+So, we really wanted to make it look like the thinking phase.
+
+09:45.000 --> 09:48.000
+Is this note on the margin of booklets?
+
+09:48.000 --> 09:50.000
+So, I hope you like it.
+
+09:50.000 --> 09:53.000
+We also keep everything documented.
+
+09:53.000 --> 09:57.000
+So, we keep documentation always up to date.
+
+09:57.000 --> 09:59.000
+We also documented the internal,
+
+09:59.000 --> 10:02.000
+so, if you want to dig deeper into that, you can.
+
+10:02.000 --> 10:05.000
+And we have some plans for the future.
+
+10:05.000 --> 10:10.000
+So, Lama serve an implemented multi-model capabilities.
+
+10:10.000 --> 10:14.000
+And since period route, most of it, we need to port it to parallel.
+
+10:14.000 --> 10:16.000
+So, this is our top priority.
+
+10:16.000 --> 10:19.000
+We also need some more compatibility and points.
+
+10:19.000 --> 10:22.000
+But, we are open to adding.
+
+10:22.000 --> 10:25.000
+I don't know, Gemini or Crowdle, whatever.
+
+10:25.000 --> 10:27.000
+This is also a good first issue.
+
+10:27.000 --> 10:29.000
+If you want to contribute something.
+
+10:29.000 --> 10:31.000
+Because I think it is quite easy.
+
+10:31.000 --> 10:36.000
+You only need to map our internal data structures into,
+
+10:36.000 --> 10:38.000
+like those third party data structures.
+
+10:38.000 --> 10:41.000
+And we also want to experiment with browser agents.
+
+10:41.000 --> 10:43.000
+Because I think it would be interesting, for example,
+
+10:43.000 --> 10:46.000
+to have some of the agents from a cluster,
+
+10:46.000 --> 10:50.000
+to be spawned in browser, some of them be part of the server site.
+
+10:50.000 --> 10:54.000
+So, we are very flexible with this.
+
+10:54.000 --> 10:56.000
+Okay.
+
+10:56.000 --> 10:59.000
+So, now I want to talk a little bit about what kind of projects
+
+10:59.000 --> 11:03.000
+become possible when we have this stable self-hosting foundation,
+
+11:03.000 --> 11:05.000
+like Padler.
+
+11:05.000 --> 11:07.000
+And first of all, this begs the question,
+
+11:07.000 --> 11:09.000
+when does self-hosting make sense?
+
+11:09.000 --> 11:12.000
+First reason is, of course, costs.
+
+11:12.000 --> 11:15.000
+Of course, when we use huge models that are comparable
+
+11:15.000 --> 11:18.000
+to what we typically get from closer providers,
+
+11:18.000 --> 11:21.000
+we have this significant cost in the form of the infrastructure,
+
+11:21.000 --> 11:23.000
+that's the upfront cost.
+
+11:23.000 --> 11:26.000
+So, we normally need to generate a little bit of scale
+
+11:26.000 --> 11:30.000
+in our product to start noticing the lower costs.
+
+11:30.000 --> 11:33.000
+However, the cost efficiency gets much more immediate
+
+11:33.000 --> 11:36.000
+when we start to use some specialized smaller models.
+
+11:36.000 --> 11:39.000
+And also, with self-hosted approach,
+
+11:39.000 --> 11:42.000
+we get far better cost predictability,
+
+11:42.000 --> 11:46.000
+sometimes even also fixed costs, regardless of the scale.
+
+11:46.000 --> 11:49.000
+Then there's data privacy, and this is as we mentioned,
+
+11:49.000 --> 11:53.000
+maybe not something that is entirely recognized by the majority
+
+11:53.000 --> 11:55.000
+of the businesses.
+
+11:55.000 --> 11:57.000
+On the other hand, there are certain use cases,
+
+11:57.000 --> 12:00.000
+certain whole industries, even like the medical field,
+
+12:00.000 --> 12:03.000
+where the data privacy matters a lot.
+
+12:03.000 --> 12:08.000
+Then there's the question of the performance control
+
+12:08.000 --> 12:09.000
+over the latency.
+
+12:09.000 --> 12:12.000
+Here, the reason is clear, you only infrastructure,
+
+12:12.000 --> 12:15.000
+so you'll have full control over it.
+
+12:15.000 --> 12:18.000
+And finally, there's the better user experience.
+
+12:18.000 --> 12:21.000
+So, this is something that we get from being able to use
+
+12:21.000 --> 12:24.000
+a smaller specialized, finite models,
+
+12:24.000 --> 12:27.000
+but it's also something that we get thanks to the fact
+
+12:27.000 --> 12:31.000
+that we are not dependent on some silent updates
+
+12:31.000 --> 12:33.000
+in vendor models.
+
+12:33.000 --> 12:37.000
+So, I think that the reasons for self-hosting
+
+12:37.000 --> 12:41.000
+are strong, but they want to make them very, very concrete,
+
+12:41.000 --> 12:45.000
+and talk about a few projects that we are building on top of
+
+12:45.000 --> 12:48.000
+Padler, and that we hope represented this experimental
+
+12:48.000 --> 12:51.000
+frontier of using LLAMS.
+
+12:51.000 --> 12:53.000
+And my hope here is that this is going to give you
+
+12:53.000 --> 12:57.000
+some kind of inspiration for your own projects,
+
+12:57.000 --> 13:00.000
+and that this is also going to give you some solid arguments
+
+13:00.000 --> 13:03.000
+for when you need to get the buy in from the business,
+
+13:03.000 --> 13:06.000
+or from the product, and when you need to convince someone
+
+13:06.000 --> 13:08.000
+for the self-hosted approach.
+
+13:08.000 --> 13:11.000
+And the first project is poet.
+
+13:11.000 --> 13:14.000
+This is another open source project that we're working on,
+
+13:14.000 --> 13:18.000
+and this is a static site generator with a built-in
+
+13:18.000 --> 13:21.000
+MCP server, and we are now combining working
+
+13:21.000 --> 13:24.000
+on adding some LLAMS-based features.
+
+13:24.000 --> 13:29.000
+So, poet is designed to give full control over the abstract
+
+13:29.000 --> 13:33.000
+syntax tree of both map-down and HTML,
+
+13:33.000 --> 13:37.000
+and what we can do is that it exposes LLAMS-based API,
+
+13:37.000 --> 13:40.000
+and we can do things like text analysis,
+
+13:40.000 --> 13:43.000
+or cross-referencing between documents,
+
+13:43.000 --> 13:47.000
+and Padler can very easily plug in two such an environment
+
+13:47.000 --> 13:50.000
+and be used to, for example, analyze text.
+
+13:50.000 --> 13:53.000
+So, for instance, we can check that the metadata
+
+13:53.000 --> 13:56.000
+matches the content or we can identify
+
+13:56.000 --> 13:59.000
+a single source of truth across our documentation.
+
+13:59.000 --> 14:03.000
+So, why poet may need self-hosted models?
+
+14:03.000 --> 14:07.000
+One is that different content requires different understanding.
+
+14:07.000 --> 14:11.000
+So, if you have a blog about Rust programming language,
+
+14:11.000 --> 14:14.000
+this is going to give you a different vocabulary
+
+14:14.000 --> 14:17.000
+than let's say a legal website,
+
+14:17.000 --> 14:21.000
+and with self-hosted models, users can find
+
+14:21.000 --> 14:23.000
+you on some small specialized models,
+
+14:23.000 --> 14:26.000
+and get far better consistency checks.
+
+14:26.000 --> 14:29.000
+Another thing is that with content,
+
+14:29.000 --> 14:32.000
+not all commercial models work well with content.
+
+14:32.000 --> 14:34.000
+Some kind of content, like, for instance,
+
+14:34.000 --> 14:37.000
+imagine that you are building a website
+
+14:37.000 --> 14:39.000
+with some mature themes, or legal content
+
+14:39.000 --> 14:41.000
+that describe crimes.
+
+14:41.000 --> 14:44.000
+Some commercial models are going to just refuse
+
+14:44.000 --> 14:47.000
+or hedge, and specialized self-hosted,
+
+14:47.000 --> 14:51.000
+find two answers or model is just going to do the task.
+
+14:51.000 --> 14:55.000
+Another project, this is something we're working on
+
+14:55.000 --> 14:58.000
+that I want to start up for context.
+
+14:58.000 --> 15:00.000
+We are building a no-code tool that is going to allow
+
+15:00.000 --> 15:03.000
+our users to build systems by describing
+
+15:03.000 --> 15:06.000
+some general business terms business domains
+
+15:06.000 --> 15:09.000
+instead of having to explicitly define
+
+15:09.000 --> 15:12.000
+every database schema relation or work.
+
+15:12.000 --> 15:16.000
+And for that, we need to come up with
+
+15:16.000 --> 15:19.000
+some way of different way of representing systems
+
+15:19.000 --> 15:21.000
+and applications, specifically,
+
+15:21.000 --> 15:24.000
+we need a different way for storing data.
+
+15:24.000 --> 15:27.000
+And we came up with the idea of using RDF,
+
+15:27.000 --> 15:29.000
+so there is a description framework.
+
+15:29.000 --> 15:31.000
+And because we also want our users
+
+15:31.000 --> 15:33.000
+to build using natural language,
+
+15:33.000 --> 15:35.000
+we need something that is going to take the user input
+
+15:35.000 --> 15:37.000
+and translate it into Sparkle queries,
+
+15:37.000 --> 15:40.000
+and Sparkle is the query language for RDF.
+
+15:40.000 --> 15:44.000
+And we came across the project called Fire Sparkle,
+
+15:44.000 --> 15:46.000
+and this is a research project,
+
+15:46.000 --> 15:48.000
+and it's goal is to take the user input
+
+15:48.000 --> 15:50.000
+and translate it into Sparkle queries,
+
+15:50.000 --> 15:53.000
+so this is exactly what we need.
+
+15:53.000 --> 15:54.000
+And for the researchers,
+
+15:54.000 --> 15:57.000
+it was enough to use a 70 billion parameter model
+
+15:57.000 --> 15:58.000
+to prepare the data,
+
+15:58.000 --> 16:01.000
+and then just eight billion parameter model
+
+16:01.000 --> 16:04.000
+final model to process the user input
+
+16:04.000 --> 16:06.000
+and translate to Sparkle.
+
+16:06.000 --> 16:09.000
+Also, with self-hosting and specifically with
+
+16:09.000 --> 16:12.000
+MSVP, we can use features like grammars,
+
+16:12.000 --> 16:14.000
+and this is something that is going to
+
+16:14.000 --> 16:16.000
+further constraint the model output
+
+16:16.000 --> 16:19.000
+and get what we need.
+
+16:19.000 --> 16:22.000
+So, could we achieve that with commercial models?
+
+16:22.000 --> 16:24.000
+Theoretically yes,
+
+16:24.000 --> 16:26.000
+but the self-hosted approach is far better,
+
+16:26.000 --> 16:28.000
+because let's consider what this approach means
+
+16:28.000 --> 16:31.000
+from the product, business,
+
+16:31.000 --> 16:33.000
+operational perspective.
+
+16:33.000 --> 16:35.000
+With self-hosted, fine-tilt models,
+
+16:35.000 --> 16:37.000
+and features like grammars,
+
+16:37.000 --> 16:39.000
+we get far better model output,
+
+16:39.000 --> 16:43.000
+so this means far better user experience in our product.
+
+16:43.000 --> 16:45.000
+We also get better stability,
+
+16:45.000 --> 16:47.000
+like if we used commercial API,
+
+16:47.000 --> 16:49.000
+we could risk some changes,
+
+16:49.000 --> 16:51.000
+some updates in the vendor model,
+
+16:51.000 --> 16:53.000
+we would change the translation quality,
+
+16:53.000 --> 16:56.000
+and we would risk random regressions.
+
+16:56.000 --> 16:58.000
+With self-hosted models,
+
+16:58.000 --> 17:00.000
+it's much cheaper and much more convenient
+
+17:00.000 --> 17:03.000
+to self-host the small model,
+
+17:03.000 --> 17:05.000
+like the eight billion parameter one,
+
+17:05.000 --> 17:08.000
+data privacy is also fully within
+
+17:08.000 --> 17:10.000
+our control.
+
+17:10.000 --> 17:12.000
+So, we can see that we can build
+
+17:12.000 --> 17:15.000
+a complex but coherent system
+
+17:15.000 --> 17:18.000
+that is going to serve multiple users concurrently,
+
+17:18.000 --> 17:20.000
+and open it for that,
+
+17:20.000 --> 17:22.000
+our models from having faith,
+
+17:22.000 --> 17:24.000
+patler, and a little bit of patience.
+
+17:30.000 --> 17:33.000
+So, of course, those were just two examples
+
+17:33.000 --> 17:34.000
+of what you can do,
+
+17:34.000 --> 17:36.000
+once you have a control of your
+
+17:36.000 --> 17:38.000
+inferencing infrastructure,
+
+17:38.000 --> 17:41.000
+but we really hope that when you leave this room,
+
+17:41.000 --> 17:43.000
+you will keep this thinking
+
+17:43.000 --> 17:47.000
+that the experimental front says much more accessible than you think,
+
+17:47.000 --> 17:50.000
+and that you can, for example, use some
+
+17:50.000 --> 17:54.000
+function to build a model to power a real product.
+
+17:54.000 --> 17:59.000
+So, if you need something which the commercial API is missing,
+
+17:59.000 --> 18:02.000
+that can be some more specialized models,
+
+18:02.000 --> 18:04.000
+some constraints,
+
+18:04.000 --> 18:09.000
+or even if you want the overall predictable behavior over the time,
+
+18:09.000 --> 18:12.000
+you can see that the open source is not just an option,
+
+18:12.000 --> 18:15.000
+but it's actually the best choice that you can do.
+
+18:16.000 --> 18:20.000
+And if you want to reach out to us to talk about the project,
+
+18:20.000 --> 18:22.000
+about padler,
+
+18:22.000 --> 18:25.000
+and point our sensors and our mobs,
+
+18:25.000 --> 18:27.000
+feel free to do that.
+
+18:27.000 --> 18:30.000
+We will appreciate a lot,
+
+18:30.000 --> 18:33.000
+and we are also given away some pins.
+
+18:33.000 --> 18:36.000
+So, if you reach out, you can get one as well.
+
+18:36.000 --> 18:38.000
+So, that was it.
+
+18:38.000 --> 18:40.000
+Thank you everyone for listening.
+
+18:41.000 --> 18:44.000
+Thank you.
+
+18:49.000 --> 18:50.000
+Any questions?
+
+18:50.000 --> 18:52.000
+We have one minute for questions.
+
+18:52.000 --> 18:53.000
+No?
+
+18:53.000 --> 18:55.000
+Okay, one question.
+
+18:56.000 --> 18:57.000
+Thank you.
+
+18:59.000 --> 19:00.000
+Thank you.
+
