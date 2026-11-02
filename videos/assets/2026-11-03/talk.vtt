@@ -1,0 +1,869 @@
+WEBVTT
+
+00:00.000 --> 00:10.000
+So, first talk is going to be on Dravali Murray Management and Containers by Chantan.
+
+00:10.000 --> 00:12.000
+Hi, good morning everyone.
+
+00:12.000 --> 00:13.000
+Thank you for coming.
+
+00:13.000 --> 00:14.000
+It's a full house.
+
+00:14.000 --> 00:16.000
+I can pretend you all here to see me.
+
+00:16.000 --> 00:18.000
+And of course, you're actually queueing up two hours early to see Leonard.
+
+00:18.000 --> 00:21.000
+I'm just done that, but I'm just going to take that anyway.
+
+00:21.000 --> 00:24.000
+It's an honor to be the sort of warm-up act.
+
+00:24.000 --> 00:29.000
+Can I just start sort of reiterate what we've said about the mics and stuff.
+
+00:29.000 --> 00:31.000
+This also affects what goes on the recording.
+
+00:31.000 --> 00:33.000
+So, if you can't hear it and you want to listen back later,
+
+00:33.000 --> 00:34.000
+we also still need it pretty quiet.
+
+00:34.000 --> 00:36.000
+But there's going to be people coming and going all day long,
+
+00:36.000 --> 00:37.000
+so it's quite challenging.
+
+00:37.000 --> 00:40.000
+This is the worst room in the whole university for this, I think.
+
+00:40.000 --> 00:42.000
+Quick poll.
+
+00:42.000 --> 00:43.000
+Can you show a hand, please?
+
+00:43.000 --> 00:46.000
+Who here is their first fozz dem?
+
+00:46.000 --> 00:48.000
+That's, wow.
+
+00:48.000 --> 00:53.000
+Okay, I would say that's probably close to half, actually, which is astonishing.
+
+00:53.000 --> 00:55.000
+Please, I hope you enjoy yourselves.
+
+00:55.000 --> 00:57.000
+It is quite an experience.
+
+00:57.000 --> 01:01.000
+I'm going to do a quick talk about memory tuning of Java for containers.
+
+01:01.000 --> 01:03.000
+It's going to be a sort of three-parter.
+
+01:03.000 --> 01:06.000
+The first bit, I'm going to talk a little bit about the background in the scene setting,
+
+01:06.000 --> 01:08.000
+which Java am I talking about anyway.
+
+01:08.000 --> 01:13.000
+Then I'll go into tuning for memory and a bit a little bit on out profiling,
+
+01:13.000 --> 01:15.000
+all of that, that's a small chunk.
+
+01:15.000 --> 01:17.000
+And then I'll just run over the takeaways.
+
+01:17.000 --> 01:20.000
+And hopefully have a little bit of time for questions and answers if there are any.
+
+01:20.000 --> 01:22.000
+I've got questions, there's at least one.
+
+01:23.000 --> 01:28.000
+I'm going to assume, the assumption I made here is that you are container people,
+
+01:28.000 --> 01:30.000
+not really Java people.
+
+01:30.000 --> 01:32.000
+And I need to make a confession.
+
+01:32.000 --> 01:35.000
+I'm not really a Java person either.
+
+01:35.000 --> 01:40.000
+I've been an open source person for a big number of years.
+
+01:40.000 --> 01:44.000
+And I've been working on Java on containers for ten years,
+
+01:44.000 --> 01:47.000
+but prior to that, I was one of you.
+
+01:47.000 --> 01:51.000
+Okay, so I think I'll get this out of the way.
+
+01:51.000 --> 01:55.000
+We've all heard of the enterprise programming jokes,
+
+01:55.000 --> 01:57.000
+and they're absolutely right.
+
+01:57.000 --> 01:59.000
+But there's a conflation going on.
+
+01:59.000 --> 02:04.000
+And Java is, in many ways, a unique open source success story,
+
+02:04.000 --> 02:07.000
+because it was not a green field open source program.
+
+02:07.000 --> 02:09.000
+It was of course close source from the start.
+
+02:09.000 --> 02:12.000
+And it was later opened by one of the most
+
+02:12.000 --> 02:15.000
+reputationally hostile companies in the world,
+
+02:15.000 --> 02:18.000
+whilst it was underpinning billions of dollars of revenue.
+
+02:19.000 --> 02:23.000
+And it is now developed by a collaboration of some of the most
+
+02:23.000 --> 02:27.000
+egregiously aggressive billion dollar companies in the world
+
+02:27.000 --> 02:29.000
+together, and it somehow happens.
+
+02:29.000 --> 02:31.000
+So I think it deserves to be recognized.
+
+02:31.000 --> 02:34.000
+It's somewhat a unique, oh, a success story there.
+
+02:34.000 --> 02:37.000
+Also, we're talking about containers.
+
+02:37.000 --> 02:39.000
+This is genuinely some yamble.
+
+02:39.000 --> 02:42.000
+I pulled out of some of our stuff I had to do at work.
+
+02:42.000 --> 02:45.000
+So let's not throw stones in glass houses.
+
+02:46.000 --> 02:50.000
+Okay, so the first bit of which Java is which Java vendor.
+
+02:50.000 --> 02:53.000
+Okay, so open JDK is a source distribution.
+
+02:53.000 --> 02:56.000
+The open source project produces source,
+
+02:56.000 --> 02:58.000
+but it doesn't ship binaries.
+
+02:58.000 --> 03:00.000
+That's done by the vendors who are contributing.
+
+03:00.000 --> 03:02.000
+And they are all competing with each other
+
+03:02.000 --> 03:04.000
+to, first of all, release the builds,
+
+03:04.000 --> 03:07.000
+as soon as they can, after the source releases cut.
+
+03:07.000 --> 03:09.000
+But also they configure them differently,
+
+03:09.000 --> 03:11.000
+some applied different patches.
+
+03:11.000 --> 03:14.000
+So where you get your Java from is relevant.
+
+03:14.000 --> 03:17.000
+To how you tune it.
+
+03:17.000 --> 03:20.000
+So open JDK is the open source project.
+
+03:20.000 --> 03:24.000
+Oracle, I tried to understand Oracle's logo trademark license
+
+03:24.000 --> 03:27.000
+rules and I couldn't, so their logo doesn't go on slide.
+
+03:27.000 --> 03:29.000
+Red type, of course, for another vendor.
+
+03:29.000 --> 03:32.000
+Until about six months ago, I was working at Red Hat.
+
+03:32.000 --> 03:34.000
+We've now been lifted and shifted into IBM,
+
+03:34.000 --> 03:36.000
+and I haven't quite got my head down yet.
+
+03:36.000 --> 03:39.000
+So I might occasionally say I'm still at Red Hat.
+
+03:39.000 --> 03:40.000
+Just forgive me that.
+
+03:40.000 --> 03:42.000
+But I didn't bring my fedora this year.
+
+03:42.000 --> 03:45.000
+And Tamarin is a consortium.
+
+03:45.000 --> 03:47.000
+It's the Clips Foundation, I think.
+
+03:47.000 --> 03:50.000
+Clips Adoptium Tamarin.
+
+03:50.000 --> 03:53.000
+That's a very different people contribute to that.
+
+03:53.000 --> 03:56.000
+And they produce builds of open JDK for free.
+
+03:56.000 --> 03:58.000
+And so if you have no idea where to get it from,
+
+03:58.000 --> 04:00.000
+then that's not a bad place to start.
+
+04:00.000 --> 04:02.000
+I would say.
+
+04:02.000 --> 04:03.000
+Okay.
+
+04:03.000 --> 04:07.000
+But then what Java version are we talking about either?
+
+04:07.000 --> 04:10.000
+Java 8, JDK 8, anyone who does work on Java,
+
+04:10.000 --> 04:14.000
+or experiences it here was probably involved with the Java JDK 8?
+
+04:14.000 --> 04:17.000
+I'm afraid to say it's not dead yet.
+
+04:17.000 --> 04:21.000
+It's planned to be supported until 2030.
+
+04:21.000 --> 04:24.000
+I imagine that I will probably die before it does.
+
+04:24.000 --> 04:28.000
+Unfortunately, the Java release model is there's a new feature release
+
+04:28.000 --> 04:30.000
+of Java every six months.
+
+04:30.000 --> 04:34.000
+Every three years, that release is blessed as a long-term support release.
+
+04:34.000 --> 04:39.000
+And every quarter there's a roll-up patch release for the company's supported versions.
+
+04:39.000 --> 04:42.000
+So that's the more full CV fixes in it.
+
+04:42.000 --> 04:47.000
+So another one you may have experienced JDK 11 is now pretty long in the tooth.
+
+04:47.000 --> 04:49.000
+That's been around quite a long time.
+
+04:49.000 --> 04:52.000
+And actually, that's dying this year, apparently.
+
+04:52.000 --> 04:55.000
+Until the 11th hour when a very rich customer's
+
+04:55.000 --> 04:58.000
+tells to keep supporting it in which case that number might change.
+
+04:58.000 --> 05:02.000
+But there are subsequent LTS versions that would be better choices
+
+05:02.000 --> 05:04.000
+if you're doing new deployments now.
+
+05:04.000 --> 05:06.000
+25 came out this year.
+
+05:06.000 --> 05:09.000
+Well, just a year gone coincidentally in 2025.
+
+05:09.000 --> 05:11.000
+It would be a better choice.
+
+05:11.000 --> 05:13.000
+And this is relevant for container memory tuning,
+
+05:13.000 --> 05:18.000
+because we are introducing new features and improvements
+
+05:18.000 --> 05:20.000
+in these Java versions that are going forward
+
+05:20.000 --> 05:23.000
+that you're not getting if you're stuck back on eight.
+
+05:23.000 --> 05:28.000
+So Java is a managed language, or the J.
+
+05:28.000 --> 05:30.000
+I mean, yeah.
+
+05:30.000 --> 05:32.000
+One of these things is caveats.
+
+05:32.000 --> 05:33.000
+I'm talking about Java.
+
+05:33.000 --> 05:35.000
+The managed language is a garbage collector.
+
+05:35.000 --> 05:36.000
+There's a runtime.
+
+05:36.000 --> 05:37.000
+It does jit.
+
+05:37.000 --> 05:40.000
+But another way to manage memory would be to do something
+
+05:40.000 --> 05:42.000
+a bit different, like compile it in native.
+
+05:42.000 --> 05:47.000
+Oracle Labs, who are separate part of Oracle from the Java team
+
+05:47.000 --> 05:50.000
+Oracle, have a product called Graal VM, which is a native
+
+05:50.000 --> 05:51.000
+compiler for Java.
+
+05:51.000 --> 05:54.000
+You can use that to build native binaries.
+
+05:54.000 --> 05:55.000
+And then you don't have the jit.
+
+05:55.000 --> 05:57.000
+You don't have hotspot.
+
+05:57.000 --> 06:01.000
+That's quite one way you can use it is to frame work like
+
+06:01.000 --> 06:04.000
+Quarkus, which is a sort of batteries included,
+
+06:04.000 --> 06:06.000
+Java development framework, which supports
+
+06:06.000 --> 06:09.000
+doing native builds out of the box.
+
+06:09.000 --> 06:11.000
+That's pretty much all I'm going to say on native builds
+
+06:11.000 --> 06:13.000
+and stuff, because mostly I'm talking about the J.V.
+
+06:13.000 --> 06:15.000
+I'm the rest of this talk.
+
+06:15.000 --> 06:17.000
+All right.
+
+06:17.000 --> 06:21.000
+The J.V.M. is container aware, in the sense it reads memory limits
+
+06:21.000 --> 06:23.000
+that have been set via C groups.
+
+06:23.000 --> 06:25.000
+Either version one or version two.
+
+06:25.000 --> 06:27.000
+It's so good we did it twice.
+
+06:27.000 --> 06:30.000
+Old documentation might mention this flag,
+
+06:30.000 --> 06:33.000
+which in the early days was necessary for Java to actually
+
+06:33.000 --> 06:34.000
+on a C group values.
+
+06:34.000 --> 06:36.000
+It's not needed anymore.
+
+06:36.000 --> 06:38.000
+We have it's just defaults to on.
+
+06:38.000 --> 06:40.000
+You can turn it off if you really want to.
+
+06:40.000 --> 06:43.000
+And we've backported C group to be one and V2 all the way back
+
+06:43.000 --> 06:44.000
+to JDK8.
+
+06:44.000 --> 06:49.000
+So wherever Java you're using, it can read C group memory limits.
+
+06:49.000 --> 06:52.000
+It has what we call container awareness.
+
+06:52.000 --> 06:55.000
+So a brief overview of what Java memory,
+
+06:55.000 --> 06:58.000
+which I'm just view of memory is.
+
+06:58.000 --> 07:03.000
+The lion's share of the memory that Java manages is the heap.
+
+07:03.000 --> 07:05.000
+It's an object oriented language.
+
+07:05.000 --> 07:06.000
+It creates a lot of objects.
+
+07:06.000 --> 07:08.000
+There was an allocated on the heap.
+
+07:08.000 --> 07:10.000
+The garbage collector operates on the heap.
+
+07:10.000 --> 07:12.000
+This is not proportional exactly.
+
+07:12.000 --> 07:17.000
+Basically the biggest chunk of RAM that Java is going to use.
+
+07:17.000 --> 07:20.000
+There's a little bit called metaspace, which is separate.
+
+07:20.000 --> 07:24.000
+So various bits of class metadata, internal stuff,
+
+07:24.000 --> 07:26.000
+static variables are managed here.
+
+07:26.000 --> 07:28.000
+That's utterly independent from the heap.
+
+07:28.000 --> 07:32.000
+This doesn't get garbage collected by the Java garbage collector.
+
+07:32.000 --> 07:36.000
+The management of metaspace memory interacts with the garbage collector.
+
+07:36.000 --> 07:39.000
+In complicated ways that I'm not going to so expand on here.
+
+07:39.000 --> 07:42.000
+But it's a smaller chunk of RAM memory than a heap.
+
+07:42.000 --> 07:44.000
+There's even more that unfortunately.
+
+07:44.000 --> 07:48.000
+So of course the stacks that the actual Java threads have stacks.
+
+07:48.000 --> 07:50.000
+There's for completion sake.
+
+07:50.000 --> 07:54.000
+This program count is for managing which line which instruction is being executed
+
+07:54.000 --> 07:56.000
+in each of those Java threads.
+
+07:56.000 --> 07:59.000
+The JVM is a native program at the end of the day.
+
+07:59.000 --> 08:02.000
+So there's also native stacks when per OS thread.
+
+08:02.000 --> 08:07.000
+And it's possible to allocate native memory as well on the heap.
+
+08:07.000 --> 08:11.000
+So that's not managed by the Java garbage collector.
+
+08:11.000 --> 08:16.000
+But it can be used by native libraries are linked in via various methods.
+
+08:16.000 --> 08:20.000
+Or there's netty which is a popular web tool uses a lot of this.
+
+08:20.000 --> 08:22.000
+And it can be hard to reason about.
+
+08:22.000 --> 08:28.000
+So when it comes to the JVM and trying to decide how to best utilize the available memory it has.
+
+08:28.000 --> 08:30.000
+This is the picture it has.
+
+08:30.000 --> 08:33.000
+And some of that, even though it's aware of it, it's without sign as control.
+
+08:33.000 --> 08:39.000
+But in a container context, we also have potentially sub-processes that we have created.
+
+08:39.000 --> 08:41.000
+Which have their own RAM.
+
+08:41.000 --> 08:46.000
+If you're talking about Kubernetes or something like that, then you're going to have probes.
+
+08:46.000 --> 08:47.000
+Liveness probes, readiness probes.
+
+08:47.000 --> 08:52.000
+They are going to execute within the context of the container and therefore under the subject to that.
+
+08:52.000 --> 08:54.000
+Whatever the memory limit is.
+
+08:54.000 --> 08:55.000
+There's also.
+
+08:55.000 --> 09:02.000
+If a DevOps person just bonds a shell to see what's going on, that needs to be accounted for as well.
+
+09:03.000 --> 09:11.000
+And the takeaway here really is that the JVM does not have an overview of full and complete overview of the RAM requirements that are going to happen.
+
+09:11.000 --> 09:17.000
+Inside a container, even if it is ostensibly the main thing running.
+
+09:17.000 --> 09:25.000
+So when you create a container with a Java payload and you give it X amount of gigs of RAM, it has to allow for the fact that there's going to be other bits and bombs going on.
+
+09:25.000 --> 09:29.000
+And it's hard for it to predict what those are going to need.
+
+09:29.000 --> 09:30.000
+Okay.
+
+09:30.000 --> 09:39.000
+So the biggest widget you can tweak in the JVM for controlling the use of memory is to set a limit on how much.
+
+09:39.000 --> 09:41.000
+How big the heap can be.
+
+09:41.000 --> 09:47.000
+And the JVM defaults to 25% of available memory, which is a pretty low number.
+
+09:47.000 --> 09:51.000
+So you give two gigabytes of RAM to Java payload and do nothing else.
+
+09:51.000 --> 09:55.000
+It won't allocate more than half a gig of that for heap.
+
+09:56.000 --> 09:58.000
+That's because of this headroom problem.
+
+09:58.000 --> 10:03.000
+And it's also because it has to ask are we in a container? What is a container?
+
+10:03.000 --> 10:09.000
+It's a leaky abstraction, having a C group imposed memory limit does not necessarily mean we are a container.
+
+10:09.000 --> 10:18.000
+And the consequences of allocating a much larger proportion of the available memory in a different context, like a multi-user context or something, could be pretty catastrophic.
+
+10:18.000 --> 10:23.000
+So the JVM defaults to a really low value for this.
+
+10:23.000 --> 10:34.000
+In reds out we move this default up to 80% which seems to be a slightly more sensible default if the majority of the work is actually going to be the JVM.
+
+10:34.000 --> 10:36.000
+And the majority of it's RAM is going to be heap.
+
+10:36.000 --> 10:39.000
+Again, we've left 20% there for a headroom.
+
+10:39.000 --> 10:45.000
+But ultimately it's very limited in terms of what we can do without better understanding of what your app is actually doing.
+
+10:45.000 --> 10:47.000
+And only you have that.
+
+10:47.000 --> 10:49.000
+Okay.
+
+10:49.000 --> 10:53.000
+The average collection, Java has a lot of garbage collectors.
+
+10:53.000 --> 10:58.000
+I've put five on this slide, that's not all of them.
+
+10:58.000 --> 11:06.000
+In the near future, the default garbage collector in all circumstances will be what's called the G11 which is a balance one.
+
+11:06.000 --> 11:10.000
+Otherwise, they broadly organised into throughput-oriented garbage collectors.
+
+11:10.000 --> 11:18.000
+So those ones minimise them out of time spent doing garbage collection, work versus application work, or latency-oriented,
+
+11:18.000 --> 11:22.000
+where the important thing is how fast the application can respond to events.
+
+11:22.000 --> 11:24.000
+Those two things are somewhat in competition with each other.
+
+11:24.000 --> 11:30.000
+So if you have an application which needs to be very responsive, then you want to be going for one of these latency-based ones.
+
+11:30.000 --> 11:33.000
+Otherwise, a throughput-one perhaps.
+
+11:33.000 --> 11:40.000
+On the latency side of things, there's a garbage collector called Shen and Doer, which was added in,
+
+11:41.000 --> 11:45.000
+I have to be the big slide, 12 technically.
+
+11:45.000 --> 11:51.000
+But, and this is, again, why it's important to understand which vendor you're using, Oracle do not turn it on.
+
+11:51.000 --> 11:59.000
+So when they build Java and distribute Java, they disable building the Shen and Doer garbage collector and do not distribute it with their releases.
+
+11:59.000 --> 12:05.000
+They consequently also wrote ZGC, which landed later, which they do switch on.
+
+12:05.000 --> 12:09.000
+So what's available to you might depend on what your vendors decisions are.
+
+12:09.000 --> 12:12.000
+Write out backported Shen and Doer to eight, but not upstream.
+
+12:12.000 --> 12:17.000
+So that's in the Red Hat builds and not in open JDK's source.
+
+12:17.000 --> 12:23.000
+Another GC, this might actually be the last one, but this one's a really strange one.
+
+12:23.000 --> 12:25.000
+It basically doesn't do anything.
+
+12:25.000 --> 12:29.000
+So it manages memory allocation for the heap, but it never frees anything.
+
+12:29.000 --> 12:31.000
+Which means it doesn't spend any time freeing anything.
+
+12:32.000 --> 12:38.000
+And if you run out of RAM, you hit an out memory error, it your program is terminated.
+
+12:38.000 --> 12:47.000
+It was originally introduced probably as a sort of exercise in testing the GUB collection API to say, look, this is how easy it is to write a GUB collector.
+
+12:47.000 --> 12:53.000
+But it's potentially useful if you have an application where you are very carefully managing how many allocations there are.
+
+12:53.000 --> 13:00.000
+So you know how much you're using or you need such fast response time that you cannot afford to spend any time with garbage collection at all.
+
+13:00.000 --> 13:13.000
+Or if you've got an out of memory scenario, it is better for Java to die and for your scheduler to manage that and to rewrite traffic and do high availability stuff.
+
+13:13.000 --> 13:18.000
+If it perhaps is doing functions in a service, for example, that might be useful garbage collector for you.
+
+13:18.000 --> 13:21.000
+There's a talk about that first in 19.
+
+13:21.000 --> 13:24.000
+I've put all the links to talk to stuff in the speaker notes.
+
+13:24.000 --> 13:32.000
+So if anything's of interest, if I mention anything, it's not written on the slide. It'll be in the PDF when I eventually stick it on on the website.
+
+13:32.000 --> 13:42.000
+So take away from all that is, use a recent version of Java if you've portable account and here are a few reasons why.
+
+13:42.000 --> 13:49.000
+So in 2016 or 2021, some work was done on improving the way that Metispace memory was managed.
+
+13:49.000 --> 13:56.000
+It's still absolutely independent of the heap, so it's not garbage collected, but this used an allocation management scheme.
+
+13:56.000 --> 14:06.000
+A little bit similar to one of the Linux colonel users and massively improved the performance of the Metispace, which in some pathological situations can actually be a big problem.
+
+14:06.000 --> 14:13.000
+This command line argument here was added at the time to allow you to tune its behavior between balanced or aggressive.
+
+14:13.000 --> 14:18.000
+I believe more recently that switch has gone and it's just on all the time in balanced mode.
+
+14:18.000 --> 14:24.000
+But you don't get the benefit of that unless you're running at least JDK-16.
+
+14:24.000 --> 14:33.000
+This is relatively new, and I think it's ergonomically a little, it's going to improve, but there's a lot of work that happens when Java application start,
+
+14:33.000 --> 14:41.000
+which it could be better off cached and just read back from disk, so that's class initialization and things like that.
+
+14:41.000 --> 14:46.000
+So this work here is essentially a head of time compiling some of that.
+
+14:46.000 --> 14:58.000
+You need to, it's a three step process at the moment. You run your application, first of all, with some command line flags from the first step to a quarter profile of what classes are loaded and what things need to be cached.
+
+14:58.000 --> 15:04.000
+The second command then is independent at the moment. I think it will probably be merged with the first one in due course.
+
+15:04.000 --> 15:07.000
+The second one essentially translates that into the cache.
+
+15:07.000 --> 15:13.000
+And the third time, the third step, run your application again this time using the cache.
+
+15:13.000 --> 15:24.000
+This can be tremendous for improving the start of time, which are perhaps because typically they run relatively slowly until the total enough hot path analysis is taking place.
+
+15:24.000 --> 15:31.000
+And the jet kicks in and then it starts doing negative compilation. So this helps to accelerate that initial step.
+
+15:31.000 --> 15:38.000
+Another piece of work was reducing the size of object headers, so typical Java work loads allocate a lot of very small objects.
+
+15:38.000 --> 15:44.000
+So the actual sort of per object footprint turns out to be very important.
+
+15:44.000 --> 15:52.000
+This landed, yeah, last year, and you present you need to switch it on, but I think it's reasonable to assume that over time this will become a default as well.
+
+15:52.000 --> 16:02.000
+And apparently for some of the instrumentation they've done this can reduce memory utilization by 20% essentially for free.
+
+16:02.000 --> 16:09.000
+Okay. I have a little bit on application profiling so that the takeaway of what I've said so far I think is that the JVM is improving.
+
+16:09.000 --> 16:15.000
+And there are various things you can do or have an automatically to reduce memory pressure.
+
+16:15.000 --> 16:25.000
+But it has to make default assumptions based on work loads not just container workloads and that limits to what we can actually achieve with auto tuning.
+
+16:25.000 --> 16:33.000
+So to get the absolute best performance out of Java in a container context, you need to profile your application just like outside a container context.
+
+16:33.000 --> 16:43.000
+Outside of container context, the tools that you might wish to use are something called Java Flight Recorder, which effectively captures metrics about a running application.
+
+16:43.000 --> 16:51.000
+And Java Mission Control is this GUI app that I've screened to actually browse a capture and to look at and see what's going on.
+
+16:51.000 --> 16:59.000
+And the sort of tuning wizards can use that information to figure out what you should try and do differently to really squeeze that performance out of your app.
+
+16:59.000 --> 17:03.000
+This is a little awkward to use in a container context though of course.
+
+17:03.000 --> 17:12.000
+So my colleagues formerly operator have worked on a tool called Cryo Start. This would be a really good place for a live demo.
+
+17:12.000 --> 17:14.000
+But sorry, did you make them a screenshot?
+
+17:14.000 --> 17:26.000
+Cryo Start effectively is some tooling and to sort containerize the collection and presentation of Java Flight Recorder data in a container context.
+
+17:26.000 --> 17:41.000
+So it sits nicely next to your open shift deployment or Kubernetes deployment and manages the security of capturing those traces and providing access to the relevant to them to the relevant people and dashboarding analytics.
+
+17:41.000 --> 17:49.000
+So that's the approach I would use if you wanted to do application profiling of Java workloads and containers.
+
+17:50.000 --> 17:54.000
+Okay, so running towards the end of my time.
+
+17:54.000 --> 18:05.000
+Take away, keep up to date with JDK, get off eight if you've taught can and make take advantage of the new features that are arriving every six months.
+
+18:05.000 --> 18:19.000
+Over auto tuning is improving, things are going to get better for free, but this is going to take you so far and up profiling remains important for squeezing the best performance out of your Java app as it does for any other payload.
+
+18:19.000 --> 18:23.000
+So that's it. Thank you.
+
+18:23.000 --> 18:37.000
+All right, we've got about one minute for question, just a note before we do it out.
+
+18:37.000 --> 18:45.000
+When you those tools in front of the room, if you need to exit, you can exit through the two doors here instead of going all the way back and downstairs.
+
+18:45.000 --> 18:52.000
+That tends to be a bit easier to leave the room, but that's exit on this, you can come back that way.
+
+18:52.000 --> 19:00.000
+Okay, any question? All right, let's do the easy if front one first.
+
+19:00.000 --> 19:05.000
+Where compact object cutter is not turned on by default, sorry, 25 and onwards?
+
+19:05.000 --> 19:21.000
+That's a very good question. I think it's because generally speaking, Java features are added very conservatively and although the developers who proposed this and advocate for it have perform metrics to justify its inclusion.
+
+19:21.000 --> 19:27.000
+It's an easier, it's easier to get it into the main line, JVM, if it's not on by default, sort of day one.
+
+19:27.000 --> 19:36.000
+And like, follow up with, would say, look, it's been in for six months, people are using it, there's been no problems, it's time to make it a default.
+
+19:36.000 --> 19:43.000
+Sorry? It could be on that default later, yes.
+
+19:43.000 --> 19:56.000
+Okay, my question is, with this ahead of time cashing, is it possible to fill the cash outside the container and then deliver the container with the cash already in place?
+
+19:56.000 --> 19:59.000
+Yes.
+
