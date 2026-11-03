@@ -17,6 +17,9 @@
 - [Q16. 对象一定分配在堆上吗？讲讲逃逸分析、标量替换和 TLAB](#q16)（📅2026-10-28 ⭐4）
 - [Q17. G1 和 ZGC 分别怎么做到低停顿？SATB 与染色指针解决什么问题？](#q17)（📅2026-10-28 ⭐5）
 - [Q18. 双亲委派模型为什么存在？哪些场景必须打破它？](#q18)（📅2026-10-28 ⭐4）
+- [Q34. JVM 各内存区域分别会发生什么 OOM？线上 Metaspace OOM 如何排查？](#q34)（📅2026-11-04 ⭐4）
+- [Q35. 讲讲 HotSpot 的分层编译：Tier 0-4 各是什么？OSR 编译和 made not entrant 是怎么回事？](#q35)（📅2026-11-04 ⭐5）
+- [Q36. 强/软/弱/虚引用的区别与适用场景？PhantomReference 为什么 get() 永远返回 null？](#q36)（📅2026-11-04 ⭐4）
 
 ### 算法·LeetCode 高频题
 - [Q4. 无重复字符的最长子串（LC3）](#q4)（📅2026-10-24 ⭐3）
@@ -1986,3 +1989,141 @@ def extract(client, text: str, max_retries: int = 2) -> Invoice:
 **「追问陷阱」**
 - **"用了 json_mode 为什么还偶尔拿到非法/超范围数据？"** 应对：区分两个概念——`json_object` 模式只保证**是合法 JSON**，不保证符合你的 schema；`json_schema`(strict) 才保证 schema 合规，但数值范围/跨字段约束不一定强制，仍需 Pydantic 二次校验。很多人栽在这个区别上。
 - **"约束解码会不会让模型变笨？"** 应对：会有风险。硬约束压缩了采样空间，若 schema 强迫模型"未思考先出答案"，复杂任务准确率下降；缓解手段是 schema 内保留前置 reasoning 字段、或先自由 CoT 再约束输出 JSON。可引用 OpenAI 文档中的建议：让模型在输出结构化结果前先进行推理步骤。
+
+
+---
+
+<a id="q34"></a>
+
+### Q34. JVM 各内存区域分别会发生什么 OOM？线上 Metaspace OOM 如何排查？（🏷JVM 📅2026-11-04 ⭐难度4）
+
+**「考察点」** 是否能把 OOM 错误信息精确映射到内存区域，是否知道每类 OOM 的典型成因与排查工具链（jcmd/jmap/MAT/`-XX:+HeapDumpOnOutOfMemoryError`）。
+
+**「参考答案」**
+
+**基础答案**：先澄清概念——"内存溢出（OOM，申请不到内存）"和"内存泄漏（该回收的对象回收不掉，最终导致溢出）"是因果关系而非并列。各区域对应的错误：
+
+| 区域 | 错误信息 | 典型成因 |
+|---|---|---|
+| 堆（Heap） | `java.lang.OutOfMemoryError: Java heap space` | 对象太多/太大；泄漏（静态集合持引用、缓存无淘汰、ThreadLocal 未清理） |
+| 元空间（Metaspace） | `java.lang.OutOfMemoryError: Metaspace` | 动态生成类失控（CGLIB/反射代理/Groovy/JSP 热部署）、`MaxMetaspaceSize` 设太小 |
+| GC 开销 | `OutOfMemoryError: GC overhead limit exceeded` | 98% 时间在 GC 却只回收 <2% 堆——堆濒死的先兆 |
+| 栈（Stack） | `StackOverflowError`（不是 OOM） | 递归过深；线程数过多时建线程本身可能报 `unable to create new native thread` |
+| 直接内存 | `OutOfMemoryError: Direct buffer memory` | NIO DirectByteBuffer、Netty PooledByteBufAllocator 泄漏 |
+
+**深入原理**：
+
+1. **Metaspace 为什么取代了永久代**。JDK 8 起，类元数据从堆内 PermGen 挪到**本地内存（native memory）**的 Metaspace，默认上限是物理内存（`MaxMetaspaceSize` 默认为无限制，本机 JDK 17 实测 `PrintFlagsFinal` 显示 `MaxMetaspaceSize = 18446744073709551615`，即 Long.MAX）。动机：① PermGen 大小很难预估，动态语言/大量代理场景频繁 OOM；② 与 JRockit 融合；③ 字符串常量池、静态变量早在 JDK 7 已移入堆。注意 `MetaspaceSize`（默认 21MB，实测 22020096 字节）不是初始大小，而是**首次触发 Full GC 的阈值**，之后按高水位线自适应扩缩。
+2. **实测复现**（本机 JDK 17，`-XX:MaxMetaspaceSize=32m`）：循环用新 ClassLoader 生成动态代理类并强引用，约 **3770 个类**后抛 `OutOfMemoryError: Metaspace`。加 `-XX:+PrintGC` 能看到 OOM 前 JVM 的自救过程：先是 `Pause Full (Metadata GC Threshold)` 尝试卸载类，再升级到 `Pause Full (Metadata GC Clear Soft References)` 清软引用，都救不回来才 OOM——**Metaspace 压力大时会触发 Full GC**，这是很多人不知道的：元空间问题会表现为频繁的堆 Full GC。
+3. **类卸载的条件**：该类所有实例已回收 + 加载它的 ClassLoader 已回收 + Class 对象无引用。所以热部署框架（旧 WebappClassLoader 被一个线程/静态字段拖住）是 Metaspace 泄漏的头号来源。
+4. **排查工具链**：① 启动参数常备 `-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=...`（堆 OOM 留现场）；② Metaspace 问题用 `jcmd <pid> GC.class_stats` / `jmap -clstats <pid>` 看**每个 ClassLoader 加载的类数和占用**，按加载器分组一眼定位泄漏源（比如看到某个 `sun.reflect.DelegatingClassLoader` 有几万个——反射膨胀，可调 `-Dsun.reflect.inflationThreshold`）；③ `jcmd <pid> VM.native_memory summary`（需启动加 `-XX:NativeMemoryTracking=summary`）区分 Metaspace/CodeCache/Thread/Direct 各段 native 占用；④ 直接内存看 `BufferPoolMXBean`（`jcmd GC.heap_info` 之外的 direct 计数）与 Netty 的 leak detector。
+5. **直接内存的特殊性**：`DirectByteBuffer` 的堆上壳很小（几十字节），回收靠 Cleaner（虚引用机制，见 Q36）释放 native 内存——若堆很大、GC 很久不触发，壳对象活着，native 内存就一直不还，出现"堆很空但进程 RSS 爆掉"。对策：`-XX:MaxDirectMemorySize` 限死 + 显式释放（Netty `ReferenceCounted.release()`）。
+
+```mermaid
+graph TD
+    A[进程 RSS 涨了] --> B{jmap -heap:堆用满了吗?}
+    B -- 是 --> C[HeapDump + MAT<br/>找支配树大头/泄漏引用链]
+    B -- 否 --> D{jcmd VM.native_memory}
+    D --> E[Metaspace 大 → jmap -clstats<br/>按 ClassLoader 定位]
+    D --> F[Direct 大 → BufferPoolMXBean<br/>Netty leak detector]
+    D --> G[Thread 大 → 线程数失控<br/>排查线程池未复用]
+```
+
+**「追问陷阱」**
+1. **"堆内存很充足，为什么还 OOM？"** —— 至少三个方向：Metaspace（类元数据不占堆）、Direct buffer（native 内存，受 `MaxDirectMemorySize` 默认≈`-Xmx` 约束）、`unable to create new native thread`（每线程栈 1MB native 内存 + OS 线程数上限，`-Xss` 调小或查线程泄漏）。能按错误消息逐条对号才算过关。
+2. **"`-Xmx` 等于物理内存是不是最好？"** —— 不是。堆外还有 Metaspace、CodeCache（默认 240MB）、每线程栈、Direct buffer、GC 自身数据结构（G1 的 RSet 可占堆百分之几）；容器里 `-Xmx` 打满 limit 会被 OOMKilled（exit 137，dmesg 可查）。经验值：堆给容器内存的 50%~75%，或 JDK 10+ 用 `-XX:MaxRAMPercentage`。
+
+---
+
+<a id="q35"></a>
+
+### Q35. 讲讲 HotSpot 的分层编译：Tier 0-4 各是什么？OSR 编译和 made not entrant 是怎么回事？（🏷JVM 📅2026-11-04 ⭐难度5）
+
+**「考察点」** 是否理解 JIT 的动机（解释启动快 vs 编译运行快的矛盾）、分层编译各层的取舍、以及 OSR/deoptimization 这些动态机制——3-5 年候选人常只背得出"C1/C2"，能讲清分层状态机的是加分项。
+
+**「参考答案」**
+
+**基础答案**：Java 字节码默认先由**解释器**逐条执行（启动快、无需编译等待），热点代码再交给 **JIT（Just-In-Time）编译器**编成本地机器码（运行快）。HotSpot 有两个编译器：**C1**（client，编译快、优化浅）和 **C2**（server，编译慢、优化深：逃逸分析、内联、循环展开）。JDK 8 起默认开启**分层编译（Tiered Compilation）**，把两者串成流水线：
+
+| Tier | 执行方式 | 说明 |
+|---|---|---|
+| 0 | 解释执行 | 同时收集 profiling（方法调用计数、分支跳转计数） |
+| 1 | C1，无 profiling | 简单方法/无需更多数据的，直接轻量编译 |
+| 2 | C1，有限 profiling | C2 队列满时的降级选择 |
+| 3 | C1，完整 profiling | 常规路径：带全套计数器，为 C2 收集类型/分支画像 |
+| 4 | C2 | 用 Tier 3 攒的 profile 做激进优化（投机内联、去虚化） |
+
+常规升级路径 **0 → 3 → 4**；触发阈值由调用次数+回边次数（循环）加权计数决定，本机 JDK 17 实测 `Tier3CompileThreshold=2000`、`Tier4CompileThreshold=15000`（未分层时 `CompileThreshold=10000`）。
+
+**深入原理**：
+
+1. **实测升级过程**。写一个热点方法循环调用，`-XX:+PrintCompilation` 输出（本机真实运行结果）：
+```
+635 1188 %     3   JitDemo2::work @ 4 (29 bytes)      ← OSR：Tier3 编译循环体
+636 1189       3   JitDemo2::work (29 bytes)           ← Tier3 标准编译
+642 1190 %     4   JitDemo2::work @ 4 (29 bytes)       ← OSR 升级到 Tier4
+644 1188 %     3   JitDemo2::work @ 4   made not entrant
+646 1193       4   JitDemo2::work (29 bytes)           ← Tier4 标准编译
+648 1189       3   JitDemo2::work       made not entrant
+```
+配合性能探针：解释执行阶段单次调用约 **16,400 ns**，Tier 3 编译后降到 **1,030 ns**（约 16 倍），Tier 4 后 **668 ns**（再快约 35%，累计约 25 倍）——这就是"Java 越跑越快"的量化体现，也解释了为什么**压测必须预热**。
+2. **OSR（On-Stack Replacement，栈上替换）**：一个方法只被调用一次但内部有大循环（`main` 里跑 40 万轮），方法级计数器永远到不了阈值——于是 JVM 用**回边计数器**（backward branch，即循环回跳）单独计数，超阈值后**只编译循环体**（输出里 `%` 标记 + `@ 4` 表示从字节码偏移 4 的循环头进入），运行中的栈帧在循环回跳时**原地换成编译版继续跑**，不用等方法重新调用。OSR 版是"从中间入口"的特化版本，优化质量不如标准版（无法做方法级的全局优化），所以之后标准版编译好了会替换掉它。
+3. **made not entrant / 去优化（Deoptimization）**：旧编译版本被标记"不再接受新进入"（正在跑的帧跑完自然退出）。触发去优化的典型原因：**C2 的投机假设失败**——比如按 profile 认为某接口只有一个实现类而做了去虚化内联，后来第二个实现类被加载（CHA 失效）；或 `uncommon trap` 命中（如假设不会抛的 NPE 抛了）。去优化后退回解释执行重新收集 profile，可能再升级——所以性能会"抖一下再回来"，日志里可见 `made not on stack`/`uncommon trap`。
+4. **C2 优化依赖 profile 的本质**：Tier 4 的激进优化（类型特化、内联缓存、分支预测式布局）都建立在 Tier 3 收集的运行时画像上——这是分层设计的精髓：**先便宜地收集数据，再昂贵地做正确优化**，而不是像旧模式那样 C2 盲猜。
+5. **CodeCache**：编译产物存放在代码缓存（本机实测 `ReservedCodeCacheSize=240MB`，JDK 9+ 分三段：non-nmethods/profiled/non-profiled）。满了会停止编译（`CodeCache is full. Compiler has been disabled`）并显著变慢，大型应用需监控 `-XX:+PrintCodeCache` 或用 JMX `CodeCacheManager`。
+6. **工程参数**：容器冷启动敏感可用 **CDS/AppCDS**（类数据共享，减少加载+解释时间）或 GraalVM AOT；关闭分层 `-XX:-TieredCompilation` 只剩 0→C2（省 CodeCache、profiling 开销，但预热更慢），只到 C1 `-XX:TieredStopAtLevel=1`（Spring Boot CLI 类短命进程常用，启动快但峰值性能差）。
+
+```mermaid
+stateDiagram-v2
+    [*] --> Tier0_解释执行
+    Tier0_解释执行 --> Tier3_C1带画像 : 计数达~2000
+    Tier0_解释执行 --> Tier1_C1轻量 : 小方法直接编
+    Tier3_C1带画像 --> Tier4_C2 : 计数达~15000,用画像激进优化
+    Tier4_C2 --> Tier0_解释执行 : 投机失败→去优化,重新收集
+    note right of Tier3_C1带画像 : 大循环走 OSR:只编循环体,栈上原地换码
+```
+
+**「追问陷阱」**
+1. **"JIT 编译本身占多少资源？会不会编译线程拖慢应用？"** —— C1/C2 编译线程数按 CPU 核数自适应（`CICompilerCount`），编译在后台线程异步进行；启动期 CPU 会有一波编译尖峰。CodeCache 和编译队列满时新热点只能解释执行——排查"跑一段时间后突然变慢"要看 `PrintCodeCache` 和 PrintCompilation 是否还在产出。
+2. **"为什么我的服务预热后 QPS 达标，但扩容的新实例刚上线就超时？"** —— 正是 JIT 冷启动问题：新实例代码还在 Tier 0/3，实测差一个数量级（16μs vs 0.67μs 单调用）。对策：流量渐进接入（warm-up，如 Nginx `slow_start`、K8s readiness 探针延迟）、压测预热、或 AppCDS/AOT 缩短爬坡。能结合自己发布系统的预热策略回答是实战加分项。
+
+---
+
+<a id="q36"></a>
+
+### Q36. 强/软/弱/虚引用的区别与适用场景？PhantomReference 为什么 get() 永远返回 null？（🏷JVM 📅2026-11-04 ⭐难度4）
+
+**「考察点」** 四种引用的存活语义与 GC 交互时机、ReferenceQueue 的工作机制、以及虚引用+Cleaner 管理堆外资源的现代用法——从"背概念"到"懂对象可达性分析"的分水岭。
+
+**「参考答案」**
+
+**基础答案**：按"对象还能活多久"排序：**强引用**（普通 `Object o = new Object()`，只要可达就绝不回收，宁可 OOM）→ **软引用 SoftReference**（内存不足时回收，适合内存敏感缓存）→ **弱引用 WeakReference**（下次 GC 就回收，适合"不想影响对象生命周期"的旁路登记，如 `WeakHashMap`、`ThreadLocalMap.Entry`）→ **虚引用 PhantomReference**（完全不影响生命周期，`get()` 永远 null，唯一用途是**对象被回收时收到通知**，做资源清理）。
+
+**实测验证**（本机 JDK 17，一次 `System.gc()` 后）：
+```
+before GC: weak.get()=true  soft.get()=true  phantom.get()=null
+after  GC: weak.get()=false soft.get()=true  phantom.get()=null
+enqueued refs: [WeakReference, PhantomReference]   ← 两者都进了 ReferenceQueue
+```
+要点：弱引用一轮 GC 即失效并**自动入队**；软引用内存充足时存活；虚引用从头到尾 `get()` 都是 null，但也入队了——**通知靠队列，不靠 get()**。
+
+**深入原理**：
+
+1. **可达性分析取代引用计数**。GC 判定对象存活用**可达性分析**：从 GC Roots（栈帧局部变量、静态字段、常量、JNI 引用等）出发遍历，按路上遇到的**最强引用类型**定级——这条链上只要有一个强引用，对象就是强可达。级别依次：强可达 → 软可达（只有软引用指向）→ 弱可达 → 虚可达 → 不可达。软引用的回收时机由 `-XX:SoftRefLRUPolicyMSPerMB`（默认 1000）控制：每 MB 空闲堆可让软引用多活 1 秒，空闲堆越小越早清——所以"内存敏感缓存"行为是自动随堆压力伸缩的。
+2. **ReferenceQueue 的时机差异**：软/弱引用在**被清除后**入队（可在 finalizer 之前）；虚引用在**对象被判定虚可达后**入队。消费者线程 `queue.remove()` 阻塞等待，这就是"对象死了通知我"的机制。`finalize()` 早已 deprecated（JDK 18 起 forRemoval）：不确定何时执行、可能复活对象、拖累 GC——现代替代就是 Cleaner（内部基于 PhantomReference）。
+3. **PhantomReference.get() 为什么必须 null**：设计目的不同——弱/软引用的 `get()` 是"如果还活着就拿来用"；虚引用**不参与保活**，如果 `get()` 能返回对象，你就重新建立了强可达路径，"已被回收"的语义就矛盾了。它存在的唯一意义：把"对象内存已确定要释放"这个**事件**交给你，让你安全地释放**关联的堆外资源**。
+4. **Cleaner 与 DirectByteBuffer**（工程上最重要的一环）：`java.lang.ref.Cleaner`（JDK 9+）注册 `Cleaner.register(obj, cleaningAction)`，obj 变虚可达后在专用线程执行清理动作。`DirectByteBuffer` 正是靠 Cleaner 释放 malloc 的 native 内存——这解释了 Q34 的现象：DirectByteBuffer 的堆上壳迟迟不被 GC，native 内存就迟迟不释放。注意 cleaningAction **绝不能引用被清理对象本身**（否则强可达，永远不清理）。
+5. **ThreadLocal 内存泄漏的经典链条**：`ThreadLocalMap.Entry extends WeakReference<ThreadLocal<?>>`——key 是弱引用（ThreadLocal 没人用了 GC 掉，key 变 null），但 **value 是强引用**，且 Entry 被 Thread → ThreadLocalMap 强持有；线程池里线程长生不死，value 就一直泄漏。这就是 `threadLocal.remove()` 必须在 finally 里调用的原因——弱引用只解决了 key，救不了 value。
+
+```mermaid
+graph LR
+    R[GC Roots] -->|强引用| A[对象A: 强可达,永不回收*]
+    R -->|强| S1[SoftReference] -->|软| B[对象B: 内存不足才回收]
+    R -->|强| W1[WeakReference] -->|弱| C[对象C: 下轮GC就回收]
+    R -->|强| P1[PhantomReference] -.->|虚: get=null<br/>只为收死亡通知| D[对象D]
+    C & D --> Q[ReferenceQueue<br/>清除后入队,消费者做清理]
+```
+
+**「追问陷阱」**
+1. **"WeakHashMap 的 key 被回收后，entry 会立刻消失吗？"** —— 不会立刻。key 变 null 后 entry 仍占位，要等下一次对 map 的操作（get/put/size）触发 `expungeStaleEntries()` 顺手清理——所以 WeakHashMap 长期不访问也会持有 value（value 是强引用！）。追问"value 也想弱怎么办"：套一层 `WeakReference` 作 value，或用 Caffeine `weakKeys().weakValues()`。
+2. **"软引用做缓存现在还是好方案吗？"** —— 要答出工程演进：软引用回收时机不可控（LRUPolicy 太粗）、全堆扫描软引用拖慢 GC（大量软引用时 remark 变长）、且无法设置容量/过期策略。生产缓存主流是 Caffeine（W-TinyLFU、显式 maximumSize/expireAfter）；软引用剩下的合理场景是"纯内存兜底型"大对象缓存（如图片解码缓存），且要配 ReferenceQueue 做联动清理。
