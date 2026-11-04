@@ -21,6 +21,12 @@
 - [Q35. 讲讲 HotSpot 的分层编译：Tier 0-4 各是什么？OSR 编译和 made not entrant 是怎么回事？](#q35)（📅2026-11-04 ⭐5）
 - [Q36. 强/软/弱/虚引用的区别与适用场景？PhantomReference 为什么 get() 永远返回 null？](#q36)（📅2026-11-04 ⭐4）
 
+
+### 并发（JMM/锁/AQS/虚拟线程/线程池）
+- [Q37. ThreadPoolExecutor 提交任务时为什么是"先核心线程 → 再入队 → 再扩到 max"？这个顺序合理吗？](#q37)（📅2026-11-05 ⭐4）
+- [Q38. AQS 凭什么被称为 J.U.C 的基石？讲讲 state、CLH 队列和模板方法，并手写一个锁](#q38)（📅2026-11-05 ⭐5）
+- [Q39. 虚拟线程凭什么让单机撑百万并发？mount/unmount、pinning 和它不适合的场景](#q39)（📅2026-11-05 ⭐4）
+
 ### 算法·LeetCode 高频题
 - [Q4. 无重复字符的最长子串（LC3）](#q4)（📅2026-10-24 ⭐3）
 - [Q5. 数组中的第K个最大元素（LC215）](#q5)（📅2026-10-24 ⭐3）
@@ -2127,3 +2133,196 @@ graph LR
 **「追问陷阱」**
 1. **"WeakHashMap 的 key 被回收后，entry 会立刻消失吗？"** —— 不会立刻。key 变 null 后 entry 仍占位，要等下一次对 map 的操作（get/put/size）触发 `expungeStaleEntries()` 顺手清理——所以 WeakHashMap 长期不访问也会持有 value（value 是强引用！）。追问"value 也想弱怎么办"：套一层 `WeakReference` 作 value，或用 Caffeine `weakKeys().weakValues()`。
 2. **"软引用做缓存现在还是好方案吗？"** —— 要答出工程演进：软引用回收时机不可控（LRUPolicy 太粗）、全堆扫描软引用拖慢 GC（大量软引用时 remark 变长）、且无法设置容量/过期策略。生产缓存主流是 Caffeine（W-TinyLFU、显式 maximumSize/expireAfter）；软引用剩下的合理场景是"纯内存兜底型"大对象缓存（如图片解码缓存），且要配 ReferenceQueue 做联动清理。
+
+---
+
+<a id="q37"></a>
+
+### Q37. ThreadPoolExecutor 提交任务时为什么是"先核心线程 → 再入队 → 再扩到 max"？这个顺序合理吗？（🏷并发 📅2026-11-05 ⭐难度4）
+
+**「考察点」** 线程池调度流程的真实理解（多数人只背了 7 参数，说不清 execute() 的三步判定），以及对 `Executors` 工厂方法隐患的工程判断。
+
+**「参考答案」**
+
+**基础答案：** `ThreadPoolExecutor.execute(task)` 的判定顺序是三步：
+
+1. **当前线程数 < corePoolSize** → 直接新建核心线程执行任务（哪怕其他线程空闲！）；
+2. **核心线程满了** → 尝试 `workQueue.offer(task)` 入队；
+3. **队列也满了** → 继续新建线程直到 maximumPoolSize；
+4. **max 也满了** → 走拒绝策略 `RejectedExecutionHandler`。
+
+四种内置拒绝策略：`AbortPolicy`（默认，抛 RejectedExecutionException）、`CallerRunsPolicy`（调用者线程自己跑，天然反压——提交方被拖慢，上游流量自动降速）、`DiscardPolicy`（静默丢弃）、`DiscardOldestPolicy`（丢队头最老的任务再重试提交）。
+
+**本机实测**（JDK 17，core=2 / max=3 / 队列容量=2 / AbortPolicy，连续提交 6 个耗时任务）：
+
+```
+submit 1 -> poolSize=1 queueSize=0   ← 新建核心线程
+submit 2 -> poolSize=2 queueSize=0   ← 新建核心线程
+submit 3 -> poolSize=2 queueSize=1   ← 入队（注意：不先扩线程！）
+submit 4 -> poolSize=2 queueSize=2   ← 入队，队列已满
+submit 5 -> poolSize=3 queueSize=2   ← 队列满才扩到 max
+6th task rejected: RejectedExecutionException
+completed=5 largestPoolSize=3
+```
+
+**深入原理：**
+
+1. **为什么先入队再扩容，而不是先扩到 max 再入队？** 设计取向是**省线程**：新建线程有栈内存（平台线程默认 ~1MB）和内核调度成本，队列缓冲几乎免费。Tomcat 的 `TaskQueue` 认为这个顺序对 Web 场景不合理（IO 密集希望尽快加线程），重写了队列的 `offer()`：当前线程数 < max 时 offer 返回 false，骗线程池先扩容——这是面试的高分延伸点。
+2. **Worker 为什么不复用 Thread 而继承 AQS？** 每个 Worker 持有一个线程 + 一个不可重入锁。锁的作用是：`runWorker` 执行任务前先 `lock()`，这样 `shutdown()` 里 `interruptIdleWorkers` 只中断**拿不到锁的（空闲的）** worker，正在跑任务的线程不会被打断。不可重入是刻意的——防止任务代码里调 `setCorePoolSize` 等方法时重入拿到锁，误判自己"空闲"。
+3. **线程数怎么设？** 经典公式：CPU 密集 ≈ `N_cpu + 1`（+1 是为了利用缺页等偶发停顿）；IO 密集 ≈ `N_cpu × (1 + 等待时间/计算时间)`。但生产上更推荐**压测定参 + 动态调参**：`setCorePoolSize` / `setMaximumPoolSize` 支持运行时修改（美团动态线程池、Hippo4j 都是基于此 + 配置中心热更新），队列用有界 `ArrayBlockingQueue` 并把队列大小也纳入监控。
+4. **为什么阿里规约禁止用 `Executors`？** `newFixedThreadPool` / `newSingleThreadExecutor` 用无界 `LinkedBlockingQueue`（容量 Integer.MAX_VALUE）→ 任务堆积 OOM；`newCachedThreadPool` / `newScheduledThreadPool` 的 max 是 Integer.MAX_VALUE → 线程数爆炸 OOM。核心问题都是**无界**。
+
+```mermaid
+graph TD
+    A[execute 提交任务] --> B{线程数 < core?}
+    B -->|是| C[addWorker 新建核心线程直接跑]
+    B -->|否| D{workQueue.offer 成功?}
+    D -->|是| E[任务入队等待]
+    D -->|否,队列满| F{线程数 < max?}
+    F -->|是| G[addWorker 新建非核心线程]
+    F -->|否| H[reject 拒绝策略]
+    E -.-> I[worker 循环 take 取任务<br/>核心线程不超时<br/>非核心超 keepAlive 后回收]
+```
+
+读图要点：只有**队列满**这一条路能触发扩容到 max；所以用无界队列时 max 参数**永远不会生效**——这正是 fixedThreadPool 的隐患根源。
+
+**「追问陷阱」**
+1. **"核心线程会被回收吗？"** —— 默认不会（keepAliveTime 只作用于超出 core 的线程），但 `allowCoreThreadTimeOut(true)` 后核心线程空闲超时也回收，适合流量波峰波谷极大的场景。注意设了之后 keepAliveTime 不能为 0。
+2. **"任务抛异常了线程池会怎样？"** —— `execute()` 提交的任务抛未捕获异常会**杀死当前 worker 线程**，池子随后补建新线程（有创建开销、异常可能被吞到 ThreadGroup）；`submit()` 提交则异常被封进 Future，`get()` 时才以 ExecutionException 抛出——**不 get 就永远看不到异常**，这是线上"任务静默失败"的常见根因。生产建议任务内部自己 try-catch + 设置 `Thread.setUncaughtExceptionHandler`。
+
+---
+
+<a id="q38"></a>
+
+### Q38. AQS 凭什么被称为 J.U.C 的基石？讲讲 state、CLH 队列和模板方法，并手写一个锁（🏷并发 📅2026-11-05 ⭐难度5）
+
+**「考察点」** 能否从"会用 ReentrantLock"深入到"理解同步器框架的骨架"——state 语义、排队阻塞机制、模板方法分工，以及公平/非公平的唯一差异点。
+
+**「参考答案」**
+
+**基础答案：** AQS（AbstractQueuedSynchronizer，抽象队列同步器）用一个 **volatile int state** 表示同步状态 + 一个 **FIFO 双向等待队列**（CLH 锁的变体）管理排队线程，把"状态怎么算"留给子类（模板方法 `tryAcquire`/`tryRelease`/`tryAcquireShared`...），把"抢不到怎么排队、挂起、唤醒"这些脏活全部自己包办。
+
+state 的语义由子类定义：
+
+| 同步器 | state 含义 |
+|---|---|
+| ReentrantLock | 0=无锁，n=被同一线程重入 n 次 |
+| Semaphore | 剩余可用许可数 |
+| CountDownLatch | 剩余计数 |
+| ReentrantReadWriteLock | 高 16 位=读锁持有数，低 16 位=写锁重入数 |
+
+**手写验证**：用 AQS 独占模式实现一个不可重入互斥锁，4 线程并发 `counter++` 各 25000 次：
+
+```java
+static class SimpleLock implements Lock {
+    private final Sync sync = new Sync();
+    static class Sync extends AbstractQueuedSynchronizer {
+        @Override protected boolean tryAcquire(int ignore) {
+            if (compareAndSetState(0, 1)) {           // CAS 抢 state
+                setExclusiveOwnerThread(Thread.currentThread());
+                return true;
+            }
+            return false;
+        }
+        @Override protected boolean tryRelease(int ignore) {
+            setExclusiveOwnerThread(null);
+            setState(0);                              // 仅持有者调用，普通写即可
+            return true;                              // 返回true触发唤醒后继
+        }
+        @Override public boolean isHeldExclusively() {
+            return getExclusiveOwnerThread() == Thread.currentThread();
+        }
+        Condition newConditionObject() { return new ConditionObject(); }
+    }
+    public void lock()   { sync.acquire(1); }
+    public void unlock() { sync.release(1); }
+    // tryLock/lockInterruptibly/newCondition 等一行委托给 sync ...
+}
+```
+
+实测输出：`counter = 100000 (expect 100000)` —— 30 行核心代码就得到一把可用的锁，这就是模板方法框架的价值。
+
+**深入原理：**
+
+1. **acquire(1) 的完整链路**：`tryAcquire` 失败 → `addWaiter(EXCLUSIVE)` 把当前线程包成 Node **CAS + 自旋**追加到队尾 → `acquireQueued`：若自己的前驱是 head 就再试一次 tryAcquire，否则把前驱 waitStatus 置为 SIGNAL（"你 release 时记得叫我"），然后 `LockSupport.park()` 挂起。release 时 `tryRelease` 成功 → `unparkSuccessor(head)` 唤醒队头后继。**挂起/唤醒用 park/unpark 而非 wait/notify**，因为 park 不需要先持有监视器锁，且可以先 unpark 后 park 不丢信号。
+2. **CLH 变体在哪？** 原版 CLH 是自旋在前驱节点的状态上；AQS 改成**显式双向链表 + park 阻塞**（长时间等待自旋烧 CPU），并保留"前驱状态决定我是否该被唤醒"的思想（SIGNAL 标记）。Node 的 waitStatus 四个关键值：`CANCELLED(1)` 超时/中断作废、`SIGNAL(-1)` 后继需被唤醒、`CONDITION(-2)` 在条件队列中、`PROPAGATE(-3)` 共享模式下传播唤醒（解决 Semaphore 并发 release 丢唤醒的问题）。
+3. **两套队列**：AQS 内部其实有 **同步队列**（抢锁失败者）和每个 Condition 一个的**条件队列**（单链表）。`await()` = 释放锁 + 转入条件队列挂起；`signal()` = 把条件队列头节点**转移到同步队列**去重新抢锁——Condition 不是直接给你执行权，只是给你"参赛资格"。
+4. **公平 vs 非公平的唯一差异**：非公平锁 `tryAcquire` 上来直接 CAS 抢 state；公平锁多一行 `hasQueuedPredecessors()`（队列里有人排在我前面就不抢）。非公平是默认，因为**刚释放锁的线程立刻重抢命中率高**（此时它还在 CPU 上，无需唤醒切换），吞吐量显著更高；代价是队列里的线程可能饥饿。
+
+```mermaid
+graph LR
+    subgraph 同步队列[CLH 同步队列: 抢锁失败者]
+        H[head 哨兵<br/>=当前持锁线程] -->|SIGNAL| N1[Node B<br/>parked] --> N2[Node C<br/>parked]
+    end
+    subgraph 条件队列[Condition 条件队列: await 的线程]
+        C1[Node D] --> C2[Node E]
+    end
+    N1 -.signal: 头节点转移到同步队列尾部.-> 条件队列
+    H -.release: unparkSuccessor 唤醒 B.-> N1
+```
+
+读图要点：signal() 只是把线程从条件队列**搬运**到同步队列，它仍要按 FIFO 重新抢锁；这就是为什么 `await()` 返回后必须用 while 重查条件（虚假唤醒/条件又被别人改掉）。
+
+**「追问陷阱」**
+1. **"synchronized 死锁了怎么定位？"** —— 现场 `jstack <pid>`，末尾会直接打印死锁环。本机实测输出：
+
+```
+Found one Java-level deadlock:
+"worker-1":
+  waiting to lock monitor 0x...fe0 (object 0x...dbf8, a java.lang.Object),
+  which is held by "worker-2"
+"worker-2":
+  waiting to lock monitor 0x...fe0 (object 0x...dbe8, a java.lang.Object),
+  which is held by "worker-1"
+```
+
+再补一句工程实践：`ThreadMXBean.findDeadlockedThreads()` 可以在代码里做死锁自检告警；预防手段是**全局固定加锁顺序** + 用 `tryLock(timeout)` 替代永久等待（超时退避释放已持有锁）。
+2. **"AQS 的 state 为什么必须是 volatile 而队列操作用 CAS？"** —— state 的**可见性**靠 volatile（release 写 state 后，其他线程 acquire 读到新值才能感知锁已释放），且 volatile 写-读建立的 happens-before 保证了释放锁前的所有写对下一个持锁者可见；队列节点入队/出队是多字段复合操作，volatile 不够，用 CAS + 自旋重试保证原子性。追问"为什么不自旋到底"：高竞争下自旋空烧 CPU，park 让出核心，这也是 AQS 与自旋锁（如 LongAdder 的思路）适用场景的分界。
+
+---
+
+<a id="q39"></a>
+
+### Q39. 虚拟线程凭什么让单机撑百万并发？mount/unmount、pinning 和它不适合的场景（🏷并发 📅2026-11-05 ⭐难度4）
+
+**「考察点」** JDK 21 正式特性（JEP 444）虚拟线程的调度原理、与平台线程的本质差异，以及能否判断"什么时候**不该**用"。
+
+**「参考答案」**
+
+**基础答案：** 虚拟线程是 JVM 在用户态调度的轻量线程：**M 个虚拟线程复用 N 个平台线程**（M >> N）。每个虚拟线程的栈不是固定的 1MB 内核栈，而是**堆上按需增长的"栈块"（stack chunk）**，起步几百字节到几 KB。当虚拟线程执行到阻塞操作（Socket 读写、`Thread.sleep`、`LockSupport.park`、阻塞队列 take 等），JVM 把它的栈帧**卸载（unmount）到堆上**，让出底层平台线程去跑别的虚拟线程；IO 就绪后再**挂载（mount）**回某个平台线程继续执行。
+
+关键数字参照：100 万个平台线程 ≈ 1TB 栈内存（不可能）；100 万个虚拟线程的栈在堆上，按每个几 KB~几十 KB 算只需几 GB——**一台 16G 的机器就能持有百万级并发连接**。这就是为什么高并发 IO 服务（网关、爬虫、RPC 聚合）是它的最佳战场。
+
+**深入原理：**
+
+1. **载体线程（carrier thread）**：默认是一个 FIFO 模式的 ForkJoinPool，并行度 = CPU 核数。虚拟线程被"钉"在载体线程上执行时才消耗真实 OS 线程；阻塞时脱钩。JDK 把 `Socket`/`ServerSocket`/`SocketChannel` 底层重写为**非阻塞 IO + 事件轮询**：虚拟线程 read 时注册回调然后 park，poller 线程检测到可读后再 unpark 它——`Thread.sleep`、锁等待同理。对上层代码来说依然是同步阻塞式写法，**"用同步的代码拿到异步的吞吐"**是虚拟线程最大的工程价值（对比 CompletableFuture 回调地狱）。
+2. **Pinning（钉住）问题**：某些场景虚拟线程阻塞时**无法卸载**，会把载体线程一起堵死：
+   - **native 调用 / JNI 期间**（JVM 管不了 native 栈）；
+   - **synchronized 块内阻塞**——因为对象监视器锁的记录方式和线程绑定。JDK 21~23 的规避手段是改用 ReentrantLock；**JDK 24（JEP 491）已重写监视器实现，synchronized 不再 pinning**。
+   - 载体线程数有限（默认=核数），大量 pinning 会让整个调度器饿死。用 `-Djdk.tracePinnedThreads=full`（JDK 21）或 JFR 事件 `jdk.VirtualThreadPinned` 检测。
+3. **不要池化虚拟线程**：它是一次性的廉价对象（创建成本 ≈ new 一个普通对象），官方姿势是 `Executors.newVirtualThreadPerTaskExecutor()` 每任务一线程。池化反而制造了无谓的复用复杂度。限流靠 **Semaphore**（限制同时进行的下游调用数）而不是靠池子大小。
+4. **不适合的场景**：**CPU 密集**任务毫无收益（没有阻塞点可让出，反而多一层调度）；大量使用 ThreadLocal 缓存重对象的代码要改造（百万线程 × 每份 ThreadLocal 副本 = 内存爆炸，官方建议虚拟线程里 ThreadLocal 只做短生命周期用途）；老版本依赖（连接池、日志框架）里的 synchronized + 阻塞组合会触发 pinning，升级前要用 JFR 验证。
+
+```mermaid
+graph TD
+    subgraph JVM用户态
+        V1[虚拟线程1<br/>阻塞在socket read] -.卸载: 栈帧存到堆.-> HEAP[(堆: stack chunks)]
+        V2[虚拟线程2<br/>正在执行] --> C1
+        V3[虚拟线程3<br/>就绪排队] --> C1
+        V4[虚拟线程4<br/>正在执行] --> C2
+    end
+    subgraph 载体线程[ForkJoinPool 载体线程 x CPU核数]
+        C1[平台线程A]
+        C2[平台线程B]
+    end
+    C1 --> OS1[OS线程1]
+    C2 --> OS2[OS线程2]
+    POLLER[事件轮询线程<br/>socket就绪后唤醒V1] -.V1重新mount.-> C1
+```
+
+读图要点：任意时刻真正在 OS 线程上跑的虚拟线程数 ≈ CPU 核数；其余百万虚拟线程要么在堆上"冬眠"（已卸载），要么在就绪队列排队——阻塞不再等于占用内核线程，这就是百万并发的来源。
+
+**「追问陷阱」**
+1. **"虚拟线程能取代响应式编程（WebFlux/Reactor）吗？"** —— 大部分场景可以：虚拟线程用同步写法拿到接近异步的吞吐，可读性、可调试性（栈是完整的）远胜回调链。但响应式仍有不可替代处：**背压（backpressure）语义**、流式处理的操作符组合、以及精确控制少量 IO 多路复用的极致性能场景。工程判断：新项目高并发 IO 服务优先虚拟线程，已有 Reactor 体系没必要重写。
+2. **"虚拟线程为什么创建这么便宜？调度开销在哪？"** —— 便宜：栈在堆上按需增长（初始几百字节），创建就是 new 一个对象 + 入调度队列，没有内核系统调用；调度在 JVM 用户态完成（ForkJoinPool），上下文切换不经过内核态，成本远低于 OS 线程切换（微秒级 vs 十微秒级）。代价是 mount/unmount 时要**拷贝栈帧**（堆↔载体线程栈），深调用栈的频繁阻塞会有可感知开销——这也是"CPU 密集别用"的另一半原因。
+
