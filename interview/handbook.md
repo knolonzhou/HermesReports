@@ -12,6 +12,9 @@
 - [Q19. 讲讲 Spring Bean 的完整生命周期，各扩展点在什么时机被调用？](#q19)（📅2026-10-30 ⭐4）
 - [Q20. Spring AOP 用 JDK 动态代理还是 CGLIB？为什么"同类内部方法调用"会让切面失效？](#q20)（📅2026-10-30 ⭐4）
 - [Q21. @Autowired 和 @Resource 有什么区别？多个同类型 Bean 时 Spring 怎么选？](#q21)（📅2026-10-30 ⭐3）
+- [Q40. FactoryBean 是什么？它和 BeanFactory 有什么区别？MyBatis 的 Mapper 接口为什么能被 @Autowired？](#q40)（📅2026-11-06 ⭐3）
+- [Q41. Spring 事件机制：@EventListener 默认是同步还是异步？@TransactionalEventListener 凭什么做到"事务提交后才通知"？](#q41)（📅2026-11-06 ⭐4）
+- [Q42. 事务传播行为：REQUIRED、REQUIRES_NEW、NESTED 三者到底差在哪？各自适合什么场景？](#q42)（📅2026-11-06 ⭐4）
 
 ### JVM（内存模型/GC/类加载/JIT）
 - [Q16. 对象一定分配在堆上吗？讲讲逃逸分析、标量替换和 TLAB](#q16)（📅2026-10-28 ⭐4）
@@ -2325,4 +2328,184 @@ graph TD
 **「追问陷阱」**
 1. **"虚拟线程能取代响应式编程（WebFlux/Reactor）吗？"** —— 大部分场景可以：虚拟线程用同步写法拿到接近异步的吞吐，可读性、可调试性（栈是完整的）远胜回调链。但响应式仍有不可替代处：**背压（backpressure）语义**、流式处理的操作符组合、以及精确控制少量 IO 多路复用的极致性能场景。工程判断：新项目高并发 IO 服务优先虚拟线程，已有 Reactor 体系没必要重写。
 2. **"虚拟线程为什么创建这么便宜？调度开销在哪？"** —— 便宜：栈在堆上按需增长（初始几百字节），创建就是 new 一个对象 + 入调度队列，没有内核系统调用；调度在 JVM 用户态完成（ForkJoinPool），上下文切换不经过内核态，成本远低于 OS 线程切换（微秒级 vs 十微秒级）。代价是 mount/unmount 时要**拷贝栈帧**（堆↔载体线程栈），深调用栈的频繁阻塞会有可感知开销——这也是"CPU 密集别用"的另一半原因。
+
+---
+
+<a id="q40"></a>
+### Q40. FactoryBean 是什么？它和 BeanFactory 有什么区别？MyBatis 的 Mapper 接口为什么能被 @Autowired？（🏷Spring 📅2026-11-06 ⭐难度3）
+
+**「考察点」** 区分两个名字极像但完全不同的概念（IoC 容器顶层接口 vs "生产 Bean 的 Bean"），并借 MyBatis Mapper 注入这个日常现象考察对 FactoryBean 机制的真实理解。
+
+**「参考答案」**
+
+**基础答案：**
+- **BeanFactory**：Spring IoC 容器的**顶层接口**，定义 `getBean()` 等最基础的容器能力。`ApplicationContext` 就是它的子接口（白话：BeanFactory 是"仓库管理员"这个岗位的岗位说明书，ApplicationContext 是加上事件、国际化等职能后的高级版管理员）。
+- **FactoryBean**：一个**特殊的 Bean**——它自己不是最终产品，而是"生产产品的工厂"。当它注册进容器后，`getBean("x")` 拿到的**不是它本身，而是它 `getObject()` 方法返回的产物**；想拿工厂本身要加 `&` 前缀：`getBean("&x")`。
+
+一句话记忆：**BeanFactory 是容器，FactoryBean 是容器里会下蛋的鸡**。
+
+**深入原理：**
+
+1. **`&` 前缀在源码里怎么处理**：`AbstractBeanFactory.doGetBean()` 开头调用 `transformedBeanName(name)`，剥掉 `&` 前缀得到真实 beanName；然后如果原名带前缀，走 `getBeanInstance` 拿到工厂后直接返回；不带前缀时，`getObjectFromFactoryBean()` 会调用 `FactoryBean.getObject()` 并把产物缓存进 `factoryBeanObjectCache`（当 `isSingleton()` 为 true）。所以 FactoryBean 本身只实例化一次，产物也只生产一次。
+2. **`getObjectType()` 的真实用途**：容器做**按类型注入**（`@Autowired private Car car`）时，还没调用 getObject()，靠 `getObjectType()` 返回的类型做匹配。返回 null 会导致该 FactoryBean 的产物无法被按类型找到——这是自定义 FactoryBean 最常见的翻车点。
+3. **为什么需要它**：当一个对象的创建过程复杂（要读配置、要做动态代理、构造参数来自多个 Bean），`@Bean` 方法里写一大坨创建逻辑会让配置类失控。FactoryBean 把"创建逻辑"封装成一个可复用、可配置的类。
+4. **MyBatis 的答案就在这里**：Mapper 是**接口，没有实现类**，Spring 本来无法实例化接口。mybatis-spring 的 `MapperFactoryBean<T>` 为每个 Mapper 接口注册一个 FactoryBean，其 `getObject()` 返回 **JDK 动态代理**——代理的 InvocationHandler 是 `MapperProxy`，把接口方法调用翻译成 SQL 执行。所以你 `@Autowired UserMapper` 注入的其实是 `MapperFactoryBean.getObject()` 吐出来的代理对象。OpenFeign 的 `FeignClientFactoryBean`、早期 Spring 的 `SqlSessionFactoryBean` 同理。
+
+**真实运行验证**（Spring 6.1.14，本机 JDK 17 实跑）：
+
+```java
+public class CarFactoryBean implements FactoryBean<Car> {
+    public Car getObject() { return new Car("product-of-getObject"); }
+    public Class<?> getObjectType() { return Car.class; }
+    public boolean isSingleton() { return true; }
+}
+@Configuration
+static class Config {
+    @Bean public CarFactoryBean myCar() { return new CarFactoryBean(); }
+}
+// main:
+Object bean = ctx.getBean("myCar");    // 不带 &
+Object raw  = ctx.getBean("&myCar");   // 带 &
+```
+
+```text
+Car created: product-of-getObject          ← 产物只创建了一次
+getBean(myCar)  -> demo.Demo1$Car, name=product-of-getObject
+getBean(&myCar) -> demo.Demo1$CarFactoryBean
+getBean(myCar) twice same? -> true         ← 单例缓存生效
+```
+
+注意第三行：**两次 getBean("myCar") 返回同一实例**，证明产物走了 `factoryBeanObjectCache` 缓存。
+
+**「追问陷阱」**
+1. **"FactoryBean 的产物会走完整的 Bean 生命周期吗？"** —— 不走。产物不经过实例化后的属性填充、Aware、`@PostConstruct`、BeanPostProcessor 这一整套流程（那套只作用于 FactoryBean **本身**）。所以别指望给 Mapper 代理对象做 `@Autowired` 字段注入——它就是个裸代理。但产物**会**经过 `postProcessAfterInitialization` 吗？不会，这正是"给 Mapper 加自定义 AOP 切面很别扭"的根源之一。
+2. **"那 MapperScan 一次注册几百个 Mapper，启动慢在哪？"** —— 每个 Mapper 对应一个 BeanDefinition，getObjectType 匹配和代理生成有成本；MyBatis 还允许把 FactoryBean 的产物类型预解析缓存（`MapperFactoryBean` 的 `addToConfig` 等）。答到"批量 BeanDefinition + 每个都要动态代理"即可，不需要背细节。
+
+---
+
+<a id="q41"></a>
+### Q41. Spring 事件机制：@EventListener 默认是同步还是异步？@TransactionalEventListener 凭什么做到"事务提交后才通知"？（🏷Spring 📅2026-11-06 ⭐难度4）
+
+**「考察点」** 事件驱动解耦的三个必踩坑：默认同步阻塞、监听器异常会传染发布方、事务回滚后事件不能"覆水难收"——最后一问直指 TransactionSynchronization 机制。
+
+**「参考答案」**
+
+**基础答案：** `publishEvent()` **默认是同步的**：发布线程依次调用每个匹配的监听器，全部执行完才返回。广播器 `SimpleApplicationEventMulticaster` 只有在被设置了 `TaskExecutor` 时才异步分发；或者监听方法加 `@Async`（需 `@EnableAsync`）。`@TransactionalEventListener` 则把监听器**挂到当前事务的同步回调**上，默认 `AFTER_COMMIT` 阶段才执行——事务回滚，事件就静默丢弃。
+
+**深入原理：**
+
+1. **同步广播链路**：`AbstractApplicationContext.publishEvent()` → 按事件类型从 `ApplicationListenerMethodAdapter` 注册表里筛选匹配监听器 → `multicastEvent()` 逐个 `invokeListener`。因为跑在发布线程上，所以：监听器抛异常会**沿调用栈传回发布方**，如果发布方在事务里，异常会导致事务回滚；监听器耗时 500ms，发布方就多阻塞 500ms。`@Order` 控制监听器执行顺序，`condition` 属性支持 SpEL 表达式做运行时过滤。
+2. **异步的两种方式，语义不同**：
+   - 给 `applicationEventMulticaster` 这个**固定名字的 Bean** 注入自定义实例并设置 TaskExecutor → **所有**事件全部异步（一刀切，慎用）；
+   - 单个监听方法加 `@Async` → 只有它异步，异常不再传回发布方（进了 AsyncUncaughtExceptionHandler）。
+3. **@TransactionalEventListener 的机制**（这是本题核心）：容器处理该注解时不是注册普通监听器，而是包了一层 `ApplicationListenerMethodTransactionalAdapter`。事件到来时它先问 `TransactionSynchronizationManager.isSynchronizationActive()`——当前线程有没有活跃事务：
+   - **有** → 创建一个 `TransactionSynchronization`（事务同步回调，白话：在事务的提交前/提交后/回滚后这些"节点"上插入自己的钩子）注册进事务管理器，等事务走到指定 phase（BEFORE_COMMIT / AFTER_COMMIT / AFTER_ROLLBACK / AFTER_COMPLETION）才真正调你的方法；
+   - **没有** → 默认**直接丢弃**并打 debug 日志（`fallbackExecution=false`）；设 `fallbackExecution=true` 才会退化成普通同步执行。这是个高频线上坑：发布事件的代码没在 @Transactional 里，监听器就"神秘失灵"。
+
+**真实运行验证**（Spring 6.1.14 + H2，事务内发布事件后故意抛异常回滚）：
+
+```java
+@Transactional
+public void rollbackCase(ApplicationEventPublisher pub) {
+    System.out.println("[rollbackCase] 发布事件（事务内）");
+    pub.publishEvent(new PaidEvent(this));
+    throw new RuntimeException("boom");   // 事务回滚
+}
+@EventListener
+public void plain(PaidEvent e) { System.out.println("  -> 普通 @EventListener 立刻触发"); }
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void afterCommit(PaidEvent e) { System.out.println("  -> AFTER_COMMIT 触发"); }
+```
+
+实际输出：
+
+```text
+[rollbackCase] 发布事件（事务内）
+  -> 普通 @EventListener 立刻触发（事务未提交）
+[rollbackCase] 即将抛异常 -> 事务回滚
+[main] 捕获异常: boom
+```
+
+两个结论肉眼可见：**普通监听器在事务提交前就跑了**（此时它若发 MQ/发短信，下游会读到还没提交、即将回滚的数据）；**AFTER_COMMIT 监听器根本没出现**——事务回滚，事件被正确吞掉。另外同步语义也验证了：所有监听器的 thread 都等于 main（发布线程）。
+
+```mermaid
+sequenceDiagram
+    participant Svc as 业务方法(@Transactional)
+    participant TM as 事务管理器
+    participant Plain as 普通@EventListener
+    participant TxL as @TransactionalEventListener(AFTER_COMMIT)
+    Svc->>Plain: publishEvent 时立刻同步调用 ⚠️数据未提交
+    Svc->>TM: 方法正常返回 → 提交事务
+    TM->>TxL: AFTER_COMMIT 回调，此刻数据已落库 ✅
+    Note over TM,TxL: 若事务回滚：TxL 不执行（默认丢弃）
+```
+
+读图要点：两种监听器的触发时机差了一个"事务提交"，这个时间差就是"下游看到脏数据"与"下游看到确定数据"的区别。
+
+**「追问陷阱」**
+1. **"AFTER_COMMIT 里再写数据库行不行？"** —— 有坑：AFTER_COMMIT 回调执行时事务资源还没完全解绑，但**原事务已提交，此时的写操作默认不在任何事务里**（不会随原事务回滚，也没有事务保护）。要在提交后开新事务写库，得配 `REQUIRES_NEW`。另一个隐蔽问题：AFTER_COMMIT 仍是**同进程同步调用**（除非再加 @Async），进程在提交后、回调执行前崩溃，事件就丢了——可靠投递要用事务性发件箱（outbox 表 + 定时投递）。
+2. **"为什么我的 @TransactionalEventListener 从来没触发过？"** —— 排查三连：① 发布事件的调用链上有没有活跃事务（自调用导致 @Transactional 失效是最常见原因，参见 Q20）；② 事务是回滚了而不是提交（phase 不匹配）；③ 需要无事务也执行的话加 `fallbackExecution=true`。
+
+---
+
+<a id="q42"></a>
+### Q42. 事务传播行为：REQUIRED、REQUIRES_NEW、NESTED 三者到底差在哪？各自适合什么场景？（🏷Spring 📅2026-11-06 ⭐难度4）
+
+**「考察点」** 不是背 7 个枚举，而是理解三种"事务边界策略"——加入、另起炉灶、嵌套保存点——在连接、锁、回滚粒度上的真实差异，以及 rollback-only 标记这个经典事故源。
+
+**「参考答案」**
+
+**基础答案：** 传播行为回答一个问题：**"我这个方法被别的事务方法调用时，我的事务怎么算？"** Spring 定义 7 种，实际 90% 的场景只需要分清三种：
+
+| 传播行为 | 外层有事务时 | 外层无事务时 | 内层失败对外层的影响 |
+|---|---|---|---|
+| REQUIRED（默认） | **加入**外层事务，共用一个物理事务 | 自己新建一个 | 内层抛异常 → 整个事务标记 rollback-only，**全部回滚** |
+| REQUIRES_NEW | **挂起**外层，新开一个**独立事务**（独立连接、独立提交） | 自己新建一个 | 内层提交后外层回滚，**内层数据保留** |
+| NESTED | 在外层事务里打一个 **JDBC savepoint**（保存点，白话：游戏存档，可以从存档点重来而不用重开一局） | 等价于 REQUIRED | 内层回滚只回到 savepoint；**外层回滚则内层一起回滚** |
+
+人话解读：REQUIRED 是"一条船"，REQUIRES_NEW 是"两条船"，NESTED 是"一条船但内层有独立救生艇"。
+
+**深入原理：**
+
+1. **代码在哪分叉**：事务切面 `TransactionInterceptor` → `AbstractPlatformTransactionManager.getTransaction()`，核心是 `handleExistingTransaction()` 里按 `propagationBehavior` switch：REQUIRED 直接复用当前 `TransactionStatus`；REQUIRES_NEW 调 `suspend()` 把当前线程绑定的连接资源（`TransactionSynchronizationManager` 里的 ConnectionHolder）解绑挂起，再从连接池**拿第二个连接**开新事务；NESTED 则在当前连接上执行 `Connection.setSavepoint()`。
+2. **REQUIRES_NEW 的两个代价**：① 同时占用**两个数据库连接**——外层挂起但连接没还，内层再借一个。高并发 + 连接池偏小时，外层方法都在等内层拿连接、内层拿不到连接因为池被外层占满，**连接池死锁**；② 内外是两个物理事务，内层提交后外层回滚，内层不会跟着回滚——用于"操作日志、扣减库存流水"这类**必须留下痕迹**的场景是特性，用于"主单和子单必须同生共死"的场景就是事故。
+3. **NESTED vs REQUIRES_NEW 的关键差异**：NESTED 共用一个连接一个物理事务，回滚粒度是 savepoint；**外层回滚时内层必然陪葬**（同一个事务），REQUIRES_NEW 则不会。NESTED 依赖 JDBC 驱动支持 savepoint，且 `JpaTransactionManager` **不支持 NESTED**（Hibernate 的 flush 机制与 savepoint 语义冲突，会抛 NestedTransactionNotSupportedException）。
+4. **rollback-only 事故链**（面试必问）：REQUIRED 的内层方法抛异常，即使**外层 catch 住了**，事务也救不回来——因为内层退出事务切面时已把共享事务标记为 rollback-only，外层提交时抛 `UnexpectedRollbackException("Transaction silently rolled back because it has been marked as rollback-only")`。想"内层失败不影响外层"，只有 REQUIRES_NEW 或 NESTED 两条路。
+
+**真实运行验证**（Spring 6.1.14 + H2 + DataSourceTransactionManager，本机实跑）：
+
+```java
+@Transactional
+public void caseRequiresNew() {
+    jdbc.update("INSERT INTO t_log VALUES (0, 'outer')");
+    inner.insertRequiresNew();              // 内层 @Transactional(REQUIRES_NEW)，独立提交
+    throw new RuntimeException("outer 失败，但 REQUIRES_NEW 已独立提交");
+}
+```
+
+实际输出（对照组 REQUIRED 也一起跑了）：
+
+```text
+caseRequired 后表中数据（预期：空，全部回滚）: []
+caseRequiresNew 抛出: outer 失败，但 REQUIRES_NEW 已独立提交
+caseRequiresNew 后表中数据（预期：只剩 inner-REQUIRES_NEW）: [inner-REQUIRES_NEW]
+```
+
+对照组说明：外层 REQUIRED 场景下内外两条插入**一起消失**（一条船沉了）；REQUIRES_NEW 场景下外层回滚后，内层那条 `inner-REQUIRES_NEW` **仍然在表里**（两条船，各沉各的）——传播行为的语义被数据库里的真实数据直接证明。
+
+```mermaid
+graph LR
+    subgraph REQ[REQUIRED: 一条船]
+        A1[外层 INSERT] --> A2[内层 INSERT] --> A3[外层抛异常] --> A4[整体回滚: 表为空]
+    end
+    subgraph RN[REQUIRES_NEW: 两条船]
+        B1[外层 INSERT] --> B2[内层开新事务 INSERT 并提交 ✅] --> B3[外层抛异常回滚] --> B4[内层数据保留]
+    end
+```
+
+读图要点：分叉点在"内层是否拥有独立的提交时刻"。REQUIRES_NEW 的内层在外层抛异常**之前**就已经 commit 落盘，覆水难收。
+
+**「追问陷阱」**
+1. **"外层 catch 住了内层 REQUIRED 的异常，为什么提交时还是炸了？"** —— 就是上面第 4 点的 rollback-only 标记。应对：要么别 catch（让异常穿透统一回滚），要么内层改 REQUIRES_NEW/NESTED，要么内层用 `noRollbackFor` 精确豁免特定异常。能说出 `UnexpectedRollbackException` 这个类名基本就过关了。
+2. **"REQUIRES_NEW 有什么线上事故模式？"** —— 两个标准答案：① 连接池耗尽死锁（每个请求占 2 个连接，池大小没翻倍配置）；② 数据不一致（内层提交、外层回滚，出现"有支付流水却没有订单"的孤儿数据）。追问"怎么缓解"：连接池容量评估 + 监控 `active connections`；业务上把 REQUIRES_NEW 限定在"允许独立存在"的记录（日志、审计、通知），主链路数据保持 REQUIRED 同生共死。
 
