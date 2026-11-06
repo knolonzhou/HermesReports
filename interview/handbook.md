@@ -37,6 +37,9 @@
 - [Q22. K 个一组翻转链表（LC25）](#q22)（📅2026-10-31 ⭐4）
 - [Q23. 二叉树的最近公共祖先（LC236）](#q23)（📅2026-10-31 ⭐3）
 - [Q24. 岛屿数量（LC200）](#q24)（📅2026-10-31 ⭐3）
+- [Q43. 搜索旋转排序数组（LC33）](#q43)（📅2026-11-07 ⭐4）
+- [Q44. 零钱兑换（LC322）](#q44)（📅2026-11-07 ⭐3）
+- [Q45. 全排列（LC46）](#q45)（📅2026-11-07 ⭐3）
 
 ### 算法·系统设计类
 - [Q7. 设计秒杀系统——如何保证不超卖？](#q7)（📅2026-10-25 ⭐5）
@@ -2508,4 +2511,213 @@ graph LR
 **「追问陷阱」**
 1. **"外层 catch 住了内层 REQUIRED 的异常，为什么提交时还是炸了？"** —— 就是上面第 4 点的 rollback-only 标记。应对：要么别 catch（让异常穿透统一回滚），要么内层改 REQUIRES_NEW/NESTED，要么内层用 `noRollbackFor` 精确豁免特定异常。能说出 `UnexpectedRollbackException` 这个类名基本就过关了。
 2. **"REQUIRES_NEW 有什么线上事故模式？"** —— 两个标准答案：① 连接池耗尽死锁（每个请求占 2 个连接，池大小没翻倍配置）；② 数据不一致（内层提交、外层回滚，出现"有支付流水却没有订单"的孤儿数据）。追问"怎么缓解"：连接池容量评估 + 监控 `active connections`；业务上把 REQUIRES_NEW 限定在"允许独立存在"的记录（日志、审计、通知），主链路数据保持 REQUIRED 同生共死。
+
+
+---
+
+<a id="q43"></a>
+
+### Q43. 搜索旋转排序数组——旋转之后还能二分吗？（LC33，🏷算法·LeetCode 📅2026-11-07 ⭐难度4）
+
+> 原题：[LeetCode 33. Search in Rotated Sorted Array](https://leetcode.cn/problems/search-in-rotated-sorted-array/)（Medium）
+> 整数数组 `nums` 按升序排列后在某个下标处旋转（如 `[0,1,2,4,5,6,7]` → `[4,5,6,7,0,1,2]`），给定 `target`，存在则返回下标，否则返回 `-1`。要求 **O(log n)**。
+
+**「考察点」** 能否看穿"旋转数组局部有序"的结构性质，在无序数组上依然用二分——大厂笔试面试的常青树。
+
+**「参考答案」**
+
+**基础答案：** 整体不有序，但**以 mid 切开，必有一半是完全有序的**。每次二分先判断哪半边有序（比较 `nums[lo]` 和 `nums[mid]`），再看 target 是否落在有序半边的值域区间内：在就进有序半边，不在就进另一半。仍是 O(log n)。
+
+**深入原理：**
+
+1. **为什么必有一半有序？** 旋转数组是"两段递增 + 一个断崖"。mid 要么在左段（大值段），要么在右段（小值段）。若 `nums[lo] <= nums[mid]`，说明 lo..mid 之间没有断崖 → 左半有序；否则断崖在左半 → 右半 `mid..hi` 必然有序。
+2. **判断 target 在哪半：** 对有序的半边，直接用值域夹逼 `nums[lo] <= target < nums[mid]`（左半）或 `nums[mid] < target <= nums[hi]`（右半）。注意端点开闭：`nums[mid]` 本身已在循环开头判过相等，所以排除掉；另一端要**闭区间**（target 可能正好等于边界值）。
+3. **易错点：** `nums[lo] <= nums[mid]` 的 `=` 不能丢——当 lo == mid（区间只剩 2 个元素）时左半"有序"退化为单点，必须归入左半有序分支，否则死循环或漏解。
+
+```python
+def search(nums, target):
+    lo, hi = 0, len(nums) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if nums[mid] == target:
+            return mid
+        if nums[lo] <= nums[mid]:          # 左半有序（含 lo==mid 退化情形）
+            if nums[lo] <= target < nums[mid]:
+                hi = mid - 1
+            else:
+                lo = mid + 1
+        else:                               # 右半有序
+            if nums[mid] < target <= nums[hi]:
+                lo = mid + 1
+            else:
+                hi = mid - 1
+    return -1
+```
+
+```java
+public int search(int[] nums, int target) {
+    int lo = 0, hi = nums.length - 1;
+    while (lo <= hi) {
+        int mid = lo + (hi - lo) / 2;      // 防溢出写法
+        if (nums[mid] == target) return mid;
+        if (nums[lo] <= nums[mid]) {       // 左半有序
+            if (nums[lo] <= target && target < nums[mid]) hi = mid - 1;
+            else lo = mid + 1;
+        } else {                           // 右半有序
+            if (nums[mid] < target && target <= nums[hi]) lo = mid + 1;
+            else hi = mid - 1;
+        }
+    }
+    return -1;
+}
+```
+
+（两种实现均已本地跑过边界用例：单元素、`[3,1]`、`[5,1,3]` 等。）
+
+**复杂度：** 时间 O(log n)，空间 O(1)。
+
+**变体 / 追问：**
+- **"如果数组有重复元素呢？"（LC81）** —— `nums[lo] == nums[mid] == nums[hi]` 时无法判断哪半有序（如 `[1,1,1,0,1]`）。只能 `lo++, hi--` 收缩一步，最坏退化到 O(n)。这是"重复元素毁掉二分的确定性"的经典案例。
+- **"数据量 100 亿、数组在磁盘上怎么办？"** —— 二分本身就是为外部存储友好的：每步只读 1 个元素，100 亿数据也只需 ~34 次随机 IO。工程上配 B+ 树/分块索引把随机 IO 变少；旋转点也可以先二分找出来（LC153），然后对两个有序段分别做常规二分。
+
+**「追问陷阱」**
+1. **"为什么不能先找到旋转点再二分？"** —— 可以，两趟二分（LC153 找最小值 + 标准二分）逻辑更清晰，复杂度同为 O(log n)。但面试官想听的是**一趟二分**的写法，因为它体现"局部有序"这个核心洞察；答两趟要主动说明 trade-off（可读性 vs 一趟完成）。
+2. **"`lo + (hi - lo) / 2` 和 `(lo + hi) / 2` 有区别吗？"** —— Java/C++ 中 lo+hi 可能整型溢出变负数；Python 无此问题但要能解释语言差异。这个细节常被用来区分"背过模板"和"真写过生产代码"。
+
+---
+
+<a id="q44"></a>
+
+### Q44. 零钱兑换——完全背包为什么能"一维数组 + 正序遍历"？（LC322，🏷算法·LeetCode 📅2026-11-07 ⭐难度3）
+
+> 原题：[LeetCode 322. Coin Change](https://leetcode.cn/problems/coin-change/)（Medium）
+> 给定不同面额硬币 `coins`（每种**无限个**）和总金额 `amount`，求凑成总额所需**最少硬币数**，凑不出返回 `-1`。
+
+**「考察点」** DP 状态定义、完全背包与 0-1 背包在遍历顺序上的本质区别、贪心为什么不行。
+
+**「参考答案」**
+
+**基础答案：** `dp[i]` = 凑出金额 `i` 的最少硬币数。转移：`dp[i] = min(dp[i - c] + 1)` 对所有 `c ∈ coins` 且 `c <= i`。初始 `dp[0] = 0`，其余为 `amount + 1`（不可达哨兵，比任何合法解都大）。答案 `dp[amount]`，若仍是哨兵则返回 `-1`。
+
+**深入原理：**
+
+1. **为什么贪心是错的？** 直觉"每次拿最大面额"会失败：`coins = [1, 3, 4], amount = 6`，贪心给出 `4+1+1 = 3` 枚，最优是 `3+3 = 2` 枚。贪心失败的本质：大面额硬币可能"卡住"剩余金额，子问题之间不满足贪心选择性。**必须先讲这个反例再说 DP**，这是本题最大的得分点。
+2. **完全背包的一维优化：** 二维原始式 `dp[i][j]`（前 i 种硬币凑 j）压缩成一维后，**金额维度必须正序遍历**——因为每种硬币无限个，`dp[j - c]` 允许在本轮已被更新过（即"同一枚硬币可以再用一次"）。对比 0-1 背包（LC416）必须**倒序**，防止一件物品用两次。一正一倒，是完全背包 vs 0-1 背包的面试分水岭。
+3. **本题顺序其实无所谓？** 严格说，LC322 是"外层金额、内层硬币"的写法，天然允许重复使用；如果反过来"外层硬币、内层金额（正序）"也是对的且是标准完全背包写法。但若求**组合数**（LC518）则两层循环顺序会影响结果（组合 vs 排列），这是常见连环追问。
+
+```python
+def coinChange(coins, amount):
+    INF = amount + 1
+    dp = [INF] * (amount + 1)
+    dp[0] = 0
+    for i in range(1, amount + 1):
+        for c in coins:
+            if c <= i and dp[i - c] + 1 < dp[i]:
+                dp[i] = dp[i - c] + 1
+    return dp[amount] if dp[amount] < INF else -1
+```
+
+```java
+public int coinChange(int[] coins, int amount) {
+    int[] dp = new int[amount + 1];
+    Arrays.fill(dp, amount + 1);
+    dp[0] = 0;
+    for (int i = 1; i <= amount; i++) {
+        for (int c : coins) {
+            if (c <= i) dp[i] = Math.min(dp[i], dp[i - c] + 1);
+        }
+    }
+    return dp[amount] > amount ? -1 : dp[amount];
+}
+```
+
+（已本地验证：`[1,2,5]/11 → 3`、`[2]/3 → -1`、`amount=0 → 0`、`[186,419,83,408]/6249 → 20`。）
+
+**复杂度：** 时间 O(amount × len(coins))，空间 O(amount)。
+
+**变体 / 追问：**
+- **"amount 是 100 亿怎么办？"** —— O(amount) 的 DP 直接爆炸。这是**伪多项式复杂度**（复杂度取决于数值大小而非输入长度）的经典案例，面试要能主动说出这个词。出路：① 硬币面额种类很少时可用**同余最短路 / 数论方法**（对最大面额取模建图，Dijkstra 求每个剩余类的最小可达金额），复杂度约 O(max_coin² log)；② 记忆化搜索 + 剪枝在数据稀疏时更快；③ 业务上限制 amount 上限。
+- **"要输出具体用了哪些硬币？"** —— 转移时记录 `from[i] = c`（取到最优的那枚硬币），最后从 amount 沿 from 链回溯。
+
+**「追问陷阱」**
+1. **"为什么初始值用 amount+1 而不是 Integer.MAX_VALUE？"** —— MAX_VALUE 参与 `+1` 会溢出变负数，反而"更小"污染 min。amount+1 是天然的不可达上界（最坏全用 1 元硬币也就 amount 枚）。
+2. **"BFS 能做吗？"** —— 能，而且很优雅：把金额当图节点，`i → i+c` 当边，从 0 开始 BFS，第一次到达 amount 的层数就是最少硬币数（无权图最短路）。时间同为 O(amount×n)，但 BFS 写法体现图论迁移能力，是加分答案。
+
+---
+
+<a id="q45"></a>
+
+### Q45. 全排列——回溯的"选择-撤销"骨架与两种去重姿势（LC46，🏷算法·LeetCode 📅2026-11-07 ⭐难度3）
+
+> 原题：[LeetCode 46. Permutations](https://leetcode.cn/problems/permutations/)（Medium）
+> 给定**不含重复数字**的数组 `nums`，返回其所有可能的全排列。
+
+**「考察点」** 回溯算法的标准骨架（路径、选择列表、结束条件、撤销）、used 数组 vs 交换法两种实现、以及升级到含重复元素时的剪枝。
+
+**「参考答案」**
+
+**基础答案：** 回溯 = 在决策树上做 DFS。每层从所有"未使用"的数里选一个加入路径，路径长度等于 n 时收割一个排列；递归返回时**撤销选择**（pop + used 置 false），回到父节点换下一个分支。
+
+**深入原理：**
+
+1. **决策树视角：** 全排列的决策树有 n 层，第 k 层有 n-k+1 个分支，叶子节点共 n! 个。**输出规模本身就是 n!，所以任何算法都不可能优于 O(n! × n)**（n! 个排列、每个长 n）——面试先说这句，说明你理解下界，剪枝只能剪"无效分支"不能改变量级。
+2. **两种等价实现：**
+   - **used 数组法**：路径与候选集合分离，逻辑最清晰，且是处理**含重复元素**（LC47）的唯一顺手写法。
+   - **交换法**：把 `nums[start..n-1]` 中每个元素交换到 start 位置再递归 start+1，原地复用数组不需 used，空间更省；但打乱了原数组顺序，扩展性差。
+3. **升级到 LC47（含重复）：** 先**排序**让相同元素相邻，再加剪枝条件 `if (i > 0 && nums[i] == nums[i-1] && !used[i-1]) continue;`——含义是"同一层里，相同的数只允许第一个还没被用过的分支展开"，保证重复元素按固定相对顺序被选，从而去掉重复排列。`!used[i-1]`（前一个相同元素在**本层**未被使用）是关键，写成 `used[i-1]` 也能对但剪枝时机差。
+
+```python
+def permute(nums):
+    res, path, used = [], [], [False] * len(nums)
+    def backtrack():
+        if len(path) == len(nums):
+            res.append(path[:])          # 必须拷贝快照
+            return
+        for i in range(len(nums)):
+            if used[i]:
+                continue
+            used[i] = True
+            path.append(nums[i])
+            backtrack()
+            path.pop()                   # 撤销选择
+            used[i] = False
+    backtrack()
+    return res
+```
+
+```java
+public List<List<Integer>> permute(int[] nums) {
+    List<List<Integer>> res = new ArrayList<>();
+    boolean[] used = new boolean[nums.length];
+    backtrack(nums, used, new ArrayList<>(), res);
+    return res;
+}
+private void backtrack(int[] nums, boolean[] used,
+                       List<Integer> path, List<List<Integer>> res) {
+    if (path.size() == nums.length) {
+        res.add(new ArrayList<>(path));  // 快照
+        return;
+    }
+    for (int i = 0; i < nums.length; i++) {
+        if (used[i]) continue;
+        used[i] = true;
+        path.add(nums[i]);
+        backtrack(nums, used, path, res);
+        path.remove(path.size() - 1);    // 撤销
+        used[i] = false;
+    }
+}
+```
+
+（used 法与交换法均已本地验证：n=3 输出 6 个排列且两法结果一致，单元素、双元素边界通过。）
+
+**复杂度：** 时间 O(n! × n)（n! 个排列 × 每个 O(n) 构造/拷贝），空间 O(n)（递归栈 + path + used，不计输出）。
+
+**变体 / 追问：**
+- **"n = 20 怎么办？"** —— 20! ≈ 2.4×10^18，枚举全排列物理上不可行。要点：① 如果题目只要**下一个排列**，用 LC31 的字典序法 O(n)；② 只要**第 k 个排列**（LC60），用康托展开/阶进制按位定位 O(n²)，不必枚举；③ 实际工程（如 TSP）改用状态压缩 DP O(n²·2^n) 或启发式。能区分"枚举全排列"和"按需求第 k 个"是高分信号。
+- **"输出会有重复吗（nums 含重复元素）？"** —— 即 LC47，答排序 + 同层剪枝（见上面第 3 点），最好现场写出那行剪枝条件。
+
+**「追问陷阱」**
+1. **"为什么收割时必须 `path[:]` / `new ArrayList<>(path)`？"** —— path 是全程复用的同一个对象，直接塞引用则最终 res 里全是同一个（空的）列表。这是回溯新手第一大坑，面试官几乎必问。
+2. **"回溯和 DFS 什么关系？"** —— DFS 是遍历方式，回溯 = DFS + **状态撤销**。图上 DFS 通常不撤销 visited（每个节点访问一次），而组合搜索里必须撤销，因为不同路径要复用同一节点。答出"撤销"这个差异才算过关。
 
