@@ -168,7 +168,7 @@ flowchart TB
 | 5 | 🔥 HN | Cloudflare Turnstile 求解库 cfsolve（274 分/95 评论）：无需无头浏览器过人机验证——评论区吵翻：无障碍工具还是 bot 军备 | [GitHub](https://github.com/chris124567/cfsolve) |
 | 6 | 🔥 HN | 《Breaking the open web won't stop the bad bots》（302 分）：把开放网络搞坏（强制验证/付费墙）拦不住恶意爬虫，只会误伤良民 | [Tech Policy Press](https://www.techpolicy.press/breaking-the-open-web-wont-stop-the-bad-bots/) |
 | 7 | 🔒 HN | Molly（Signal 第三方分支）三个月未更新、带病运行（179 分/121 评论）——用 fork 客户端的安全悖论：功能多但维护靠爱发电 | [讨论](https://news.ycombinator.com/item?id=50314666) |
-| 8 | 💭 HN | Vitalik Buterin 谈数字极简主义（184 分）：以太坊创始人分享自己戒信息流的实践 | [原文](https://vitalik.eth.limo/general/2026-10-31/digital_minimalism.html) |
+| 8 | 💭 HN | Vitalik Buterin 谈数字极简主义（184 分）：以太坊创始人分享自己戒信息流的实践 | [原文](https://vitalik.eth.limo/general/2026/10/31/digital_minimalism.html) |
 | 9 | 🗄️ InfoQ | 开源 pg_vectorsearch：PostgreSQL 的可扩展向量搜索新选项——RAG 应用的数据库层又多一个候选 | [InfoQ](https://www.infoq.com/news/2026/11/postgresql-vector-search/) |
 | 10 | 📱 InfoQ | Yelp AI 助手混合 UI 架构：原生组件+服务端驱动 UI 拼装——agent 时代 App 界面怎么"长"出来的工程样本 | [InfoQ](https://www.infoq.com/news/2026/11/yelp-assistant-hybrid-ui/) |
 | 11 | 📦 InfoQ | Varlock 发布 Bumpy：文件式版本管理，Changesets 的替代品（JS 生态但思路通用） | [InfoQ](https://www.infoq.com/news/2026/11/bumpy-changesets-alternative/) |
@@ -176,7 +176,7 @@ flowchart TB
 | 13 | 📚 arXiv | MedGraph：用图记忆维护患者状态，做长期医疗对话——agent 记忆基建在垂直场景的落地 | [arXiv:2611.08433](https://arxiv.org/abs/2611.08433) |
 | 14 | 📚 arXiv | Beyond K/V Caches：混合线性注意力 LLM 之间的跨模型状态交接——"换个模型接着聊"不用从头重算上下文 | [arXiv:2611.08133](https://arxiv.org/abs/2611.08133) |
 | 15 | 🖥️ HF | Smol2Operator 配方公开：2.2B 小模型 GUI 操作能力从 0.47% 拉到 61.71%（ScreenSpot-v2），纯监督微调"无 RL 无技巧"——小模型 agent 的平民化路线图 | [HF 博客](https://huggingface.co/blog/smol2operator) |
-| 16 | ☕ 播客 | Inside Java Ep74"Devoxx 问架构师"（11-06 日报 A 档已深析，播客音频本周上线可回听）；Bootiful Podcast 对话 Temporal.io 的 Cornelia Davis | [Inside Java](https://inside.java/2026-11-05/podcast-074/) |
+| 16 | ☕ 播客 | Inside Java Ep74"Devoxx 问架构师"（11-06 日报 A 档已深析，播客音频本周上线可回听）；Bootiful Podcast 对话 Temporal.io 的 Cornelia Davis | [Inside Java](https://inside.java/2026/11/05/podcast-074/) |
 
 ---
 
