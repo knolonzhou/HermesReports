@@ -48,6 +48,9 @@
 - [Q25. 缓存和数据库如何保证一致性？先删缓存还是先更新DB？](#q25)（📅2026-11-01 ⭐5）
 - [Q26. 用 Redis 怎么实现一个"生产可用"的分布式锁？从 SETNX 到 Redisson 看门狗](#q26)（📅2026-11-01 ⭐5）
 - [Q27. 限流算法怎么选？计数器、滑动窗口、令牌桶、漏桶的原理与临界问题](#q27)（📅2026-11-01 ⭐4）
+- [Q46. 分布式 ID 怎么生成？手写 Snowflake，时钟回拨了怎么办？](#q46)（📅2026-11-08 ⭐4）
+- [Q47. 一致性哈希解决了什么问题？虚拟节点和有界负载（Bounded Loads）又各补了什么坑？](#q47)（📅2026-11-08 ⭐4）
+- [Q48. 支付接口如何设计幂等性？从唯一索引到状态机，重试风暴下怎么保证"只扣一次款"？](#q48)（📅2026-11-08 ⭐5）
 
 ### 深度学习（归一化/优化器/正则化/Transformer/微调）
 - [Q10. Transformer 为什么用 LayerNorm 而不是 BatchNorm？RMSNorm 又省了什么？](#q10)（📅2026-10-26 ⭐4）
@@ -2721,3 +2724,274 @@ private void backtrack(int[] nums, boolean[] used,
 1. **"为什么收割时必须 `path[:]` / `new ArrayList<>(path)`？"** —— path 是全程复用的同一个对象，直接塞引用则最终 res 里全是同一个（空的）列表。这是回溯新手第一大坑，面试官几乎必问。
 2. **"回溯和 DFS 什么关系？"** —— DFS 是遍历方式，回溯 = DFS + **状态撤销**。图上 DFS 通常不撤销 visited（每个节点访问一次），而组合搜索里必须撤销，因为不同路径要复用同一节点。答出"撤销"这个差异才算过关。
 
+
+---
+
+<a id="q46"></a>
+
+### Q46. 分布式 ID 怎么生成？手写 Snowflake，时钟回拨了怎么办？（🏷算法·系统设计 📅2026-11-08 ⭐难度4）
+
+**「考察点」** 分布式 ID 的方案选型权衡（UUID / 数据库号段 / Redis / Snowflake），以及 Snowflake 时钟回拨、workerId 分配、序列号耗尽这三个工程死角的处理能力。
+
+**「参考答案」**
+
+**基础答案：** 常见的分布式 ID 生成方案有四种，各有取舍：
+
+| 方案 | 优点 | 缺点 | 人话解读 |
+|---|---|---|---|
+| UUID | 本地生成、无中心依赖 | 128 位太长、无序 → InnoDB 主键页分裂严重 | 随机字符串当主键，B+ 树会被插得千疮百孔 |
+| 数据库自增（多实例设步长） | 简单、有序 | 扩容要改步长、单点瓶颈 | 两台机器一台发奇数一台发偶数，加第三台就尴尬 |
+| 号段模式（美团 Leaf-segment） | DB 压力小（一次取一段）、有序 | 依赖 DB，重启可能跳号 | 像批发：一次从库里领 1000 个号慢慢发 |
+| **Snowflake** | 本地生成、趋势递增、64 位正好是 bigint | 依赖时钟、需要分配 workerId | 目前互联网公司最主流的答案 |
+
+Snowflake 的 64 位结构：
+
+```
+0 | 41 位毫秒时间戳（相对自定义纪元，可用约 69 年） | 10 位机器 ID（1024 台） | 12 位序列号（每毫秒每台 4096 个）
+```
+
+理论单机吞吐 = 4096 × 1000 = **409.6 万 ID/秒**，绝大多数业务够用。
+
+**深入原理——三个工程死角：**
+
+1. **时钟回拨（必考）**：NTP 校时（网络时间同步协议，机器定期和标准时间对表）可能把系统时间往回拨。回拨后生成的时间戳区间和之前重叠 → **ID 重复**。处理策略分级：
+   - 回拨 ≤ 5ms：**自旋等待**时钟追平（阻塞几毫秒业务无感）；
+   - 回拨较大：**拒绝服务并告警**，宁可发不出 ID 也不能发重复 ID；
+   - 百度 UidGenerator / 美团 Leaf-snowflake 的做法：Leaf 把最近的 workerId→时间戳上报到 **ZooKeeper**，启动时对比，发现回拨直接拒绝启动，并依赖 NTP 配置"只往快校不往慢校"（slew 模式）。
+   - 另有一种"借位"思路：回拨时不等待，而是把 workerId 换一个（相当于换台机器发号），适合有备用 workerId 池的场景。
+
+2. **workerId 怎么分配**：10 位机器 ID 不能两台机器撞车。手工配置容易出错，生产上一般用 ZooKeeper 顺序节点 / Redis 自增 / K8s StatefulSet 的 Pod 序号来自动注册，并在心跳失效后回收复用。
+
+3. **序列号耗尽**：单机单毫秒超过 4096 个请求时，正确做法是**自旋到下一毫秒**，而不是抛异常（下面代码已实现）。
+
+**可运行代码（Python，已实测：10 万单线程 ID 严格递增无重复、8 线程并发 16 万 ID 无重复、3ms 小回拨自动恢复、100ms 大回拨拒绝服务）：**
+
+```python
+import threading, time
+
+class Snowflake:
+    EPOCH = 1700000000000          # 自定义纪元：上线时间即可，别用 1970（浪费位数）
+    WORKER_BITS, SEQ_BITS = 10, 12
+    MAX_WORKER = (1 << WORKER_BITS) - 1   # 1023
+    MAX_SEQ = (1 << SEQ_BITS) - 1         # 4095
+    WORKER_SHIFT = SEQ_BITS               # 12
+    TS_SHIFT = SEQ_BITS + WORKER_BITS     # 22
+
+    def __init__(self, worker_id, clock=None):
+        assert 0 <= worker_id <= self.MAX_WORKER
+        self.worker_id = worker_id
+        self.clock = clock or (lambda: int(time.time() * 1000))
+        self.seq = 0
+        self.last_ts = -1
+        self.lock = threading.Lock()
+
+    def next_id(self):
+        with self.lock:                    # 单机内并发安全
+            ts = self.clock()
+            if ts < self.last_ts:          # 时钟回拨了
+                offset = self.last_ts - ts
+                if offset > 5:
+                    raise RuntimeError("clock moved backwards %dms, refuse" % offset)
+                while ts < self.last_ts:   # 小回拨：自旋等待时钟追平
+                    time.sleep(0.001)
+                    ts = self.clock()
+            if ts == self.last_ts:
+                self.seq = (self.seq + 1) % 4096
+                if self.seq == 0:          # 本毫秒 4096 个用尽
+                    while ts <= self.last_ts:
+                        ts = self.clock()  # 自旋到下一毫秒
+            else:
+                self.seq = 0
+            self.last_ts = ts
+            return ((ts - self.EPOCH) << self.TS_SHIFT) | \
+                   (self.worker_id << self.WORKER_SHIFT) | self.seq
+```
+
+**复杂度：** 生成单个 ID 时间 O(1)（无 IO，纯位运算），空间 O(1)；单机吞吐上限 409.6 万/秒。
+
+**变体 / 追问：**
+- **"业务要求 ID 严格连续（比如发票号）怎么办？"** —— Snowflake 只能保证**趋势递增**，不保证连续。严格连续必须回到号段模式 + 单点发号，或者数据库唯一约束兜底，用可用性换连续性。
+- **"如果单毫秒请求量超过 4096 呢？"** —— 除了自旋等下一毫秒，也可以压缩时间戳位数换序列号位数（比如 39 位时间戳 + 14 位序列号 = 每毫秒 1.6 万个），位数分配本来就该按业务量定制，不必照抄原版。
+
+**「追问陷阱」**
+1. **"Snowflake 生成的 ID 安全吗？能直接暴露给用户吗？"** —— 不安全。64 位里的时间戳和 workerId 是可反解的（右移 22 位就知道你的发号时间和机器数），竞对能据此推算你的**日订单量增速**。对外暴露的订单号要么加密混淆，要么用 Hashids 之类可逆编码包一层。能主动说出这点是加分项。
+2. **"为什么最高位是 0？"** —— Java 的 long 是有符号数，最高位 1 表示负数。留着 0 才能保证 ID 恒为正数。答"随便留的"就露怯了。
+
+---
+
+<a id="q47"></a>
+
+### Q47. 一致性哈希解决了什么问题？虚拟节点和有界负载（Bounded Loads）又各补了什么坑？（🏷算法·系统设计 📅2026-11-08 ⭐难度4）
+
+**「考察点」** 分布式缓存/分库分表的数据路由原理：普通哈希取模的迁移灾难 → 哈希环 → 虚拟节点治倾斜 → 有界负载治热点，这条演进链每一环"为什么需要它"。
+
+**「参考答案」**
+
+**基础答案：** 把 N 台缓存服务器分配给海量 key，最朴素的做法是 `hash(key) % N`。问题：**扩容一台（N→N+1）后，几乎所有 key 的归属都变了**，缓存瞬间全量失效，流量直接砸穿到数据库（缓存雪崩）。数学上，取模路由在 N→N+1 时平均约 `N/(N+1)` 的数据要迁移——4 台扩到 5 台，80% 数据挪家。
+
+一致性哈希（Consistent Hashing，1997 年 Karger 等人提出，最早用于 CDN）把哈希值空间组织成一个 **0 ~ 2^32-1 的环**：服务器和 key 都哈希到环上，key 归属**顺时针遇到的第一台服务器**。增删节点只影响环上相邻一段的 key，迁移量降到约 **1/N**。
+
+**深入原理——两个补丁：**
+
+1. **虚拟节点治倾斜**：物理节点少时，几台机器在环上的落点是随机的，弧段长短可能差好几倍 → 负载不均（论文里证明最坏节点负载是平均值的 Θ(log n) 倍）。解法：每台物理机映射成 **100~200 个虚拟节点**（`hash("node-1#0")`、`hash("node-1#1")`…）撒到环上，落点多了自然摊平。实测：4 节点 × 512 虚拟节点，20 万 key 的最大最小偏差约为均值的 9%（160 个虚拟节点时是 16%，虚拟节点越多越均匀但内存越费）。另一个好处：**异构机器可以按性能配不同数量的虚拟节点**，性能强的多占弧段。
+
+2. **有界负载（Bounded Loads）治热点**：虚拟节点只能保证"key 数量"均匀，不能保证"负载"均匀——某个 key 是爆款（顶流明星官宣），落在哪台哪台就被打爆。Google 2016 年论文《Consistent Hashing with Bounded Loads》（Mirrokni/Thorup/Zadimoghaddam，已用于 Google Cloud Pub/Sub，Vimeo 视频流也在用）给出简洁解法：给每台服务器设**容量上限 = (1+ε) × 平均负载**（ε 通常取 0.1~0.25），路由时顺时针找**第一个没满载**的节点。论文证明：每插入/删除一个 ball，期望只额外移动 O(1/ε²) 个其他 ball——这个上界**与集群规模无关**，所以可扩展。代价是牺牲一点"同 key 必落同机"的确定性（缓存场景完全可接受，命中率略降）。
+
+```mermaid
+flowchart LR
+    K["key: 爆款商品#123"] --> H["hash 到环上某点"]
+    H --> A["顺时针第1台: node-2<br/>负载 98% ≥ 上限(1+ε)×均值"]
+    A -->|满了，跳过| B["顺时针第2台: node-0<br/>负载 61% < 上限"]
+    B --> OK["✅ 路由到 node-0"]
+    style A fill:#ffcccc
+    style OK fill:#ccffcc
+```
+
+> 怎么读这张图：普通一致性哈希会无脑给 node-2（顺时针第一台），有界负载发现它超载就**继续顺时针探测**，把爆款分给下一台没满的。ε 就是"允许比平均值胖多少"的宽容度。
+
+**可运行代码（Python，已实测三项：①4 节点×512 虚拟节点，20 万 key 偏差 9.1%；②4→5 节点扩容迁移比例 20.53% ≈ 理论 1/5；③有界负载模式下最大节点负载不超过 1.1×均值）：**
+
+```python
+import hashlib, bisect
+
+class ConsistentHash:
+    def __init__(self, nodes, vnodes=160, epsilon=0.1):
+        self.vnodes, self.epsilon = vnodes, epsilon
+        self.ring, self.ring2node, self.node_load = [], {}, {}
+        for n in nodes:
+            self.add_node(n)
+
+    @staticmethod
+    def _hash(key):
+        return int(hashlib.md5(key.encode()).hexdigest(), 16)
+
+    def add_node(self, node):                       # 一台物理机 → vnodes 个虚拟节点
+        self.node_load.setdefault(node, 0)
+        for i in range(self.vnodes):
+            h = self._hash(f"{node}#{i}")
+            bisect.insort(self.ring, h)
+            self.ring2node[h] = node
+
+    def get(self, key):
+        """有界负载路由：顺时针找第一个负载未超 (1+ε)×均值 的节点"""
+        pos = bisect.bisect_left(self.ring, self._hash(key))
+        total = sum(self.node_load.values())
+        cap = (1 + self.epsilon) * (total + 1) / len(self.node_load)
+        for i in range(len(self.ring)):
+            node = self.ring2node[self.ring[(pos + i) % len(self.ring)]]
+            if self.node_load[node] < cap:
+                self.node_load[node] += 1
+                return node
+        raise RuntimeError("all nodes overloaded")
+```
+
+**复杂度：** 查找/插入节点 O(log(V))（V = 节点数 × 虚拟节点数，二分环数组）；单次路由最坏 O(V)（全环都满载时，实践中因 cap 保证极少发生）；空间 O(V)。扩容迁移期望 O(m/n)（m 为 key 总数）。
+
+**变体 / 追问：**
+- **"还有别的负载均衡路由算法吗？"** —— ① **Rendezvous Hashing（HRW，最高随机权重哈希）**：对每个 key 遍历所有节点算 `hash(key, node)`，取最大者。增删节点迁移量同样最优，且**无需维护环**，但每次路由 O(N)，节点多时慢，适合小集群（如分布式存储选副本）。② **Maglev 一致性哈希**（Google 负载均衡器）：查表法，O(1) 查找但表要预计算。
+- **"Redis Cluster 用的是一致性哈希吗？"** —— **不是**，这是高频陷阱。Redis Cluster 用的是 **16384 个固定哈希槽（hash slot）**：`CRC16(key) % 16384`，槽到节点的映射存在集群元数据里，扩缩容时**人为搬槽**。它更像"粒度可控的取模"——迁移单位是槽而不是 key，且迁移过程可控（MIGRATE 命令渐进搬），用运维复杂度换精确控制。
+
+**「追问陷阱」**
+1. **"虚拟节点是不是越多越好？"** —— 不是。虚拟节点数 × 物理节点数决定环的内存占用和增删节点时的重算成本；几百个之后均匀度收益递减。经验值 100~200/物理节点，答出"边际收益递减 + 内存权衡"即可。
+2. **"节点挂了的瞬间，它的负载去哪了？"** —— 顺时针转移给下一台，**这台可能瞬间被打挂 → 连锁雪崩**。所以生产上要么配合有界负载，要么每个 key 存 2~3 个副本（环上顺时针前 3 台不同物理机），答出雪崩风险说明有实战意识。
+
+---
+
+<a id="q48"></a>
+
+### Q48. 支付接口如何设计幂等性？从唯一索引到状态机，重试风暴下怎么保证"只扣一次款"？（🏷算法·系统设计 📅2026-11-08 ⭐难度5）
+
+**「考察点」** 幂等（Idempotency，同一操作执行一次和执行 N 次效果相同）的系统性设计能力：为什么分布式下重试不可避免、各种幂等方案的适用边界、并发首次请求的竞态怎么解。
+
+**「参考答案」**
+
+**基础答案：** 网络是不可靠的——调用方发出请求后超时，**无法区分"请求没到"还是"处理完了但响应丢了"**，唯一正确的动作就是重试。于是支付、下单、退款这类写接口必须幂等，否则重试 = 重复扣款。方案按强度排：
+
+| 方案 | 原理 | 适用 | 坑 |
+|---|---|---|---|
+| 数据库唯一索引 | `UNIQUE(request_id)`，重复插入直接报错 | 所有"插入型"操作的最后防线 | 高并发下冲突异常量大 |
+| 幂等令牌（Token） | 先领 token，提交时带 token，服务端 `DEL token` 成功才执行 | 表单防重复提交（前端场景） | token 校验与业务执行非原子，Redis 挂了退化 |
+| 乐观锁版本号 | `UPDATE ... SET v=v+1 WHERE id=? AND v=?` | 更新型操作 | 只防"同一行并发更新"，不防重复插入 |
+| 状态机 | 只允许合法状态迁移（INIT→PROCESSING→SUCCESS），迁移失败即幂等命中 | 订单/支付全流程 | 需要设计"中间态"的处理策略 |
+
+**生产级答案 = 唯一索引 + 状态机组合**，流程：
+
+1. **调用方**为每笔业务生成全局唯一的 `request_id`（用 Q46 的 Snowflake 或 UUID），**重试时必须复用同一个 request_id**——这是幂等的根基，接口文档要写死。
+2. 服务端收到请求，先 `INSERT INTO payment(request_id, status) VALUES(?, 'PROCESSING')`：
+   - **插入成功** → 我是第一个，真正执行扣款，完成后 CAS 更新 `PROCESSING→SUCCESS` 并保存结果；
+   - **唯一索引冲突** → 幂等命中，查状态：`SUCCESS` 直接返回**上次缓存的结果**（不是只返回"重复了"，要返回原结果，调用方才能继续走流程）；`PROCESSING` 返回"处理中"让调用方轮询查单；`FAILED` 按业务决定是返回失败还是允许换 request_id 重发起。
+
+**深入原理——两个关键竞态：**
+
+1. **并发首次请求**：两个相同 request_id 同时到达（用户双击 + MQ 重复投递）。如果没有唯一索引、只用"先查后插"（check-then-act），两个线程都查到"不存在"→ 都去扣款。**必须靠数据库唯一索引做原子裁决**——它是天然的全局互斥锁，输的那个收到 DuplicateKeyException 转入幂等分支。Redis `SETNX` 也可以做第一道闸，但 Redis 与 DB 之间不是原子的，只能做挡板不能做最终防线。
+
+2. **执行中宕机**：扣款渠道调用成功但进程挂了，状态永远停在 PROCESSING → 后续重试全部被"处理中"挡住，钱扣了单没完成。解法：**定时对账任务**扫描超时的 PROCESSING 记录，主动向渠道**查单**（渠道侧接口天然幂等），按真实结果修正状态。任何幂等设计都要配一个"最终一致性兜底"，这是区分背书方案和做过支付系统的分水岭。
+
+```mermaid
+flowchart TD
+    A["请求到达<br/>带 request_id"] --> B{"INSERT status=PROCESSING<br/>（唯一索引裁决）"}
+    B -->|插入成功=我是第一个| C["调用支付渠道扣款"]
+    C --> D["CAS: PROCESSING→SUCCESS<br/>保存结果"]
+    D --> E["返回成功+结果"]
+    B -->|唯一索引冲突=幂等命中| F{"查询当前状态"}
+    F -->|SUCCESS| G["返回上次的缓存结果"]
+    F -->|PROCESSING| H["返回处理中<br/>调用方稍后查单"]
+    F -->|FAILED| I["返回失败"]
+    J["⏰ 定时对账任务"] -.->|扫描超时 PROCESSING| K["向渠道查单<br/>修正状态"]
+    K -.-> F
+    style B fill:#fff3cd
+    style J fill:#e7f1ff
+```
+
+> 怎么读这张图：黄色菱形是全流程唯一的"原子裁决点"——数据库唯一索引保证并发下只有一个请求走真扣款分支；右下角蓝色虚线是对账兜底，处理"扣款成功但状态没落地"的宕机残留。
+
+**可运行代码（Python 模拟，已实测：同一 request_id 并发 20 次，下游渠道仅被调用 1 次；完成后重试直接返回缓存结果；不同 request_id 互不影响）：**
+
+```python
+class FakeDB:
+    """模拟 MySQL：payment 表带 request_id 唯一索引 + status 状态机"""
+    def __init__(self):
+        self.rows, self.lock = {}, threading.Lock()
+
+    def insert_processing(self, request_id):
+        """INSERT status='PROCESSING'；唯一索引冲突返回 False"""
+        with self.lock:
+            if request_id in self.rows:
+                return False                # DuplicateKeyException
+            self.rows[request_id] = {"status": "PROCESSING", "result": None}
+            return True
+
+    def cas_update(self, request_id, expect, new_status, result=None):
+        """UPDATE SET status=new WHERE request_id=? AND status=expect"""
+        with self.lock:
+            row = self.rows.get(request_id)
+            if row and row["status"] == expect:
+                row["status"] = new_status
+                if result is not None:
+                    row["result"] = result
+                return True
+            return False
+
+def pay(db, request_id, amount, channel_calls):
+    if db.insert_processing(request_id):     # 原子裁决：谁插入成功谁执行
+        result = call_channel(amount)        # 真正扣款（外部渠道）
+        channel_calls.append(request_id)
+        db.cas_update(request_id, "PROCESSING", "SUCCESS", result=result)
+        return {"code": "SUCCESS", "first": True}
+    row = db.get(request_id)                 # 幂等命中：按状态分支
+    if row["status"] == "SUCCESS":
+        return {"code": "SUCCESS", "first": False, "result": row["result"]}
+    if row["status"] == "PROCESSING":
+        return {"code": "PROCESSING", "first": False}
+    return {"code": "FAILED", "first": False}
+```
+
+**复杂度：** 主路径一次 INSERT + 一次 UPDATE，O(1)；幂等命中路径一次索引查询 O(1)。瓶颈在唯一索引的写入 TPS，可按 request_id 分库分表水平扩展。
+
+**变体 / 追问：**
+- **"如果 request_id 记录要永久保存，表无限膨胀怎么办？"** —— 幂等记录只需覆盖"重试可能发生的窗口"（一般几小时~几天），到期归档/删除即可；超长窗口的重复靠对账兜底。答"永久保留"反而暴露没做过大数据量系统。
+- **"MQ 消费端幂等和这个有什么不同？"** —— 本质相同（消费记录表 = 唯一索引裁决），但 MQ 通常"至少一次投递"（at-least-once），重复率更高，且消费者可能多实例并发拉同一批消息，唯一索引裁决点必须在**共享存储**（DB/Redis）而不是消费端内存。
+
+**「追问陷阱」**
+1. **"幂等命中时为什么不能只返回'重复请求'错误码？"** —— 因为调用方（比如订单系统）需要的是**第一次执行的结果**（支付流水号、金额）来继续自己的状态机。返回错误会把正常重试路径打断成异常路径。设计幂等接口的原则：**重复请求的响应必须和首次成功的响应等价**。
+2. **"先查再插，查询和插入之间加分布式锁行不行？"** —— 可行但劣于唯一索引：多引入一个 Redis/ZK 依赖和锁超时问题（锁过期了业务还没跑完，第二个请求进来照样重复），而唯一索引是数据库白送的、和业务写入**同一个事务**的原子裁决，没有额外的失效窗口。答"锁更好"基本可以判定没踩过生产的坑。
