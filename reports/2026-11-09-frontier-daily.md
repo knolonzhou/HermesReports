@@ -100,13 +100,13 @@ flowchart LR
 
 **💡 所以呢**：Java 工程师值得花 20 分钟看 openjdk.org/projects/babylon 的 Triton 和 matmul 两篇实操文章——即使 Babylon 三年后才落地，它揭示的"code model 作为 JVM 一等公民"方向也会先影响 Valhalla、Panama 之外的库设计。同场 Devoxx 还有 Project Detroit 演讲（把外部语言运行时嵌进 JVM，11-05 日报已深度覆盖，本篇不重复）。
 
-[来源：Inside.java](https://inside.java/2026-11-08/devoxxbelgium-java-next-programming-models/) · [Babylon 项目页](https://openjdk.org/projects/babylon) · [Triton 实操文章](https://openjdk.org/projects/babylon/articles/triton)
+[来源：Inside.java](https://inside.java/2026/11/08/devoxxbelgium-java-next-programming-models/) · [Babylon 项目页](https://openjdk.org/projects/babylon) · [Triton 实操文章](https://openjdk.org/projects/babylon/articles/triton)
 
 ### 📰 Java 要闻简报
 
 - **InfoQ：Entire 的 Git Forge 为编码 agent 重新设计 Git 协作**：核心观点是 Git 的工作流（分支、PR、review）是为人设计的，agent 高频、并行、批量提交的特性需要新的协作原语（如 agent 身份、变更意图声明、机器可审的 diff 组织）。与 GitLab 19.5"把 agentic 开发纳入平台治理"（11-06）同一趋势：DevOps 平台正在长出"agent 公民权"。[InfoQ](https://www.infoq.com/news/2026/11/entire-git-forge-coding-agents/)
 - **InfoQ：Grab 谈如何安全消化 AI 生成代码的激增**：东南亚出行巨头 Grab 的移动端稳定性实践——AI 让代码变更量暴涨后，靠分级审查、自动回滚和稳定性预算把崩溃率压住。对工程团队的启示：AI 提效的瓶颈正从"写得快"移到"merge 得稳"。[InfoQ](https://www.infoq.com/news/2026/11/grab-ai-generated-code-safety/)
-- **JDK 28 前瞻：JEP 544（AOT 代码编译）已定标**：Inside.java 10 月末确认，启动时直接加载预先编译好的本机代码，容器冷启动和 Serverless 场景受益最大；配合 11-08 演讲里 Babylon 的方向，JVM 正在同时解决"启动快"和"算得快"。另外 JDK 28 的 Value Classes（值类，不可变数据不再为每个对象付内存头的税）已进入 Quality Outreach 阶段。[JEP 544](https://inside.java/2026-10-25/jep544-target-jdk28/) · [值类前瞻](https://inside.java/2026-10-27/quality-heads-up/)
+- **JDK 28 前瞻：JEP 544（AOT 代码编译）已定标**：Inside.java 10 月末确认，启动时直接加载预先编译好的本机代码，容器冷启动和 Serverless 场景受益最大；配合 11-08 演讲里 Babylon 的方向，JVM 正在同时解决"启动快"和"算得快"。另外 JDK 28 的 Value Classes（值类，不可变数据不再为每个对象付内存头的税）已进入 Quality Outreach 阶段。[JEP 544](https://inside.java/2026/10/25/jep544-target-jdk28/) · [值类前瞻](https://inside.java/2026/10/27/quality-heads-up/)
 
 ---
 
@@ -122,7 +122,7 @@ flowchart LR
 | 6 | **billion-context**：上下文压缩插件，宣称 100K 窗口撑住数十亿 token 的月度长会话，单日 +460 star | [GitHub](https://github.com/ranxianglei/billion-context) |
 | 7 | 新星榜第一 **agent-autoloop**（4081 star）：命令行 agent 后台自动接活跟进，拿不准才找人拍板 | [GitHub](https://github.com/KKKKhazix/agent-autoloop) |
 | 8 | **NVKE**：NVIDIA 官方 Kubernetes Engine，裸金属 GPU 集群管理平面，单日 +345 star | [GitHub](https://github.com/dsx-ai-factory/nvke) |
-| 9 | Bloomberg：苹果 CEO 施压软件负责人，Siri 要转向更激进的 AI 战略（探索"ChatGPT 化"） | [Bloomberg](https://www.bloomberg.com/news/newsletters/2026-11-08/apple-explores-turning-siri-ai-into-chatgpt-do) |
+| 9 | Bloomberg：苹果 CEO 施压软件负责人，Siri 要转向更激进的 AI 战略（探索"ChatGPT 化"） | [Bloomberg](https://www.bloomberg.com/news/newsletters/2026-11-08/apple-explores-turning-siri-ai-into-chatgpt-dots-like-agent-ios-28-shake-up) |
 | 10 | HN 热议：《Quadrillion-parameter transformers and how to train them》——万亿参数级 transformer 的训练工程推演 | [qlabs.sh](https://qlabs.sh/research/parameters) |
 | 11 | arXiv：SwarmEvolve——潜在空间的 agent 蜂群做进化式发现与优化 | [arXiv](http://arxiv.org/abs/2611.08483v1) |
 | 12 | arXiv：StepBack——测试时推理的步骤级错误定位重采样，省 token 的新思路 | [arXiv](http://arxiv.org/abs/2611.08403v1) |
