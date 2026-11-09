@@ -35,7 +35,7 @@
 
 ### 📰 LLM 要闻简报
 
-- **OpenAI 完成 110 亿美元融资，估值 1.25 万亿美元**：Bloomberg/Reuters 11 月 6 日报道，SoftBank 和 MGX 参与。值得注意的不是数字本身而是缩水：OpenAI 原计划融 300 亿+、估值 1.4-1.5 万亿，因 AI 股抛售潮和数据中心舆情（美国中期选举后选民对数据中心普遍负面）被迫腰斩目标，剩余部分可能在数周内凑到 200 亿。参照系：1.25 万亿美元约等于两个茅台或一个特斯拉。资本市场对 AI 的狂热确实在降温。[Reuters](https://www.reuters.com/business/openai-secures-11-billion-funding-125-trillion-valuation-bloomberg-news-reports-2026-11-06)
+- **OpenAI 完成 110 亿美元融资，估值 1.25 万亿美元**：Bloomberg/Reuters 11 月 6 日报道，SoftBank 和 MGX 参与。值得注意的不是数字本身而是缩水：OpenAI 原计划融 300 亿+、估值 1.4-1.5 万亿，因 AI 股抛售潮和数据中心舆情（美国中期选举后选民对数据中心普遍负面）被迫腰斩目标，剩余部分可能在数周内凑到 200 亿。参照系：1.25 万亿美元约等于两个茅台或一个特斯拉。资本市场对 AI 的狂热确实在降温。[Forbes Middle East](https://www.forbesmiddleeast.com/innovation/artificial-intelligence-machine-learning/openai-reportedly-raises-$11b-at-$125t-valuation)
 - **Meta 把旗舰 Muse Wonder 衍生模型推给全部用户**：11 月 6 日宣布，重点不是"蒸馏出小模型"而是针对个人助理行为重新训练——何时自主行动、何时要确认、被纠正后如何保持上下文。两个硬数字：Active Memory 让"忘掉关键信息"的概率降到原来的 1/2.4，关键上下文正确使用率从 76% 升到 90%；Active Focus 让被打断的日常任务完成率提升 67%。大厂 agent 竞赛正从"答得好"转向"记得住、扛得住中断"。[Meta AI](https://ai.meta.com/) · [报道](https://dev.to/hiroki-ii-ai/ai-daily-digest-november-8-2026-openai-taps-hacktron-for-bug-hunts-muse-wonder-for-everyone-gin)
 - **llama-modchip：284B DeepSeek 跑在 64GB 内存的机器上，不用 GPU**：HN 热帖。原理是把超大模型的权重"改装"（modchip，名字借自游戏机破解芯片的梗）成可在纯 CPU+普通内存上推理的形式。参照系：284B 参数的模型正常部署需要多张 80GB 显存的 H100（单卡约 3 万美元），这个项目让一台 64GB 内存的工作站就能跑——速度必然慢，但"能跑"本身就把本地大模型的硬件门槛砸掉了一个数量级。[GitHub](https://github.com/synchopate/llama-modchip)
 - **NVIDIA 详解 Vera Rubin 内存策略：HBM 只多 3%，推理吞吐宣称最高 30 倍**：不靠堆内存，靠系统级调度——权重和 KV Cache 压成 NVFP4 低精度格式、72 张 GPU 分摊权重、CPU 大内存当缓冲层、冷数据沉到廉价存储。本质是把内存从"每块芯片的固定天花板"变成"整机架可调度资源"。厂商自报数字，独立基准未验证，"up to 30x"要打折扣听，但方向真实：下一代推理成本差距来自软件调度而非硬件堆料。[报道](https://dev.to/hiroki-ii-ai/ai-daily-digest-november-8-2026-openai-taps-hacktron-for-bug-hunts-muse-wonder-for-everyone-gin)
@@ -77,7 +77,7 @@ flowchart LR
 
 - **Google ADK 2.14.0：agent 框架进入"稳定时代"**：11 月 7 日发布，执行环境、A2A 协议（Agent-to-Agent，不同厂商 agent 互相调用的通用语言）、评估模块、核心运行时全部从 experimental 毕业转正（26 个模块+16 个 toolset 特性），新增 TeamsRunner 把 agent 接进微软 Teams。官方宣称 30 节点工作流的 200 轮运行快 23%、峰值内存低 9%（无基线硬件说明，谨慎采信）。重点是 A2A 转正：跨厂商多 agent 架构从此有了可以下生产注的协议。ADK 有 Java/Kotlin SDK，Java 团队可关注。[AI Weekly](https://aiweekly.co/alerts/google-adk-2140-graduates-core-modules-adds-teams-runner)
 - **OpenAI Agents SDK v0.24.0-alpha.7：持久会话+用量预算**：新增 SessionStore/SQLiteSessionStore 让对话历史存进自己的库、RunBudget 给根请求设 token/成本上限（子 agent 不计入）、`transform_context` 等上下文钩子。注意升级坑：gpt-6-astra 等模型默认推理强度从 low 改为 medium（会变贵），MCP 审批模式改名。alpha 版接口不稳定，生产别急着上。[AI Agent News](https://aiagentnews.io/stories/openai-ships-agents-sdk-v0-24-0-alpha-7-with-durable-sessions-and-usage-budgets)
-- **Claude Code"Don't Ask Again"再曝新料：1122 个公开 GitHub 文件里躺着密码**：安全公司 Apiiro 扫描发现，开发者对 Claude Code 的权限提示点了"不再询问"后，agent 连同密钥一起写进的文件被公开提交。这是 11-07 日报"邮箱泄露"事件的延续——同一类根因：**agent 的便利性开关和秘密外泄只隔一次点击**。缓解思路：pre-commit 密钥扫描 + 组织级策略禁止敏感目录写入（微软 APM 的默认拒绝模型正是对这个痛点的制度化回应）。[Apiiro](https://apiiro.com/blog/coding-agents-leaking-secrets-github-dont-ask-again)
+- **Claude Code"Don't Ask Again"再曝新料：1122 个公开 GitHub 文件里躺着密码**：安全公司 Apiiro 扫描发现，开发者对 Claude Code 的权限提示点了"不再询问"后，agent 连同密钥一起写进的文件被公开提交。这是 11-07 日报"邮箱泄露"事件的延续——同一类根因：**agent 的便利性开关和秘密外泄只隔一次点击**。缓解思路：pre-commit 密钥扫描 + 组织级策略禁止敏感目录写入（微软 APM 的默认拒绝模型正是对这个痛点的制度化回应）。[报道](https://sixtybytes.com/posts/2026-11-08-claude-code-secrets-github)
 - **OpenAI 与安全公司 Hacktron 合作攻击自家系统**：11 月 7 日宣布，重点测 OpenAI 服务与第三方平台的交互面（认证流、数据交接、权限边界——正是 agent 时代新增的攻击缝）。Hacktron 的特长恰是用 AI agent 做渗透测试和红队。连续动作（Cathedral 研究员加入安全冲刺→提高赏金→引入外部攻击者）显示 OpenAI 在系统性地把安全边界从内测扩展到全生态。[报道](https://dev.to/hiroki-ii-ai/ai-daily-digest-november-8-2026-openai-taps-hacktron-for-bug-hunts-muse-wonder-for-everyone-gin)
 - **"Agent memory 需要它的 OpenTelemetry 时刻"**：HN 热文，主张给 agent 记忆定一个开放标准格式（OpenTelemetry 是分布式追踪的开放标准，当年终结了各家 APM 工具互不相通的局面）。现在每家的 agent 记忆都是私有格式，换框架=失忆。与 Meta 主推 Active Memory、ADK 加 MongoDbMemoryService 放一起看：记忆层正在成为 agent 基建的下一个标准化战场。[Lorekit](https://www.lorekit.io/blog/open-agent-memory-format)
 
@@ -122,7 +122,7 @@ flowchart LR
 | 6 | **billion-context**：上下文压缩插件，宣称 100K 窗口撑住数十亿 token 的月度长会话，单日 +460 star | [GitHub](https://github.com/ranxianglei/billion-context) |
 | 7 | 新星榜第一 **agent-autoloop**（4081 star）：命令行 agent 后台自动接活跟进，拿不准才找人拍板 | [GitHub](https://github.com/KKKKhazix/agent-autoloop) |
 | 8 | **NVKE**：NVIDIA 官方 Kubernetes Engine，裸金属 GPU 集群管理平面，单日 +345 star | [GitHub](https://github.com/dsx-ai-factory/nvke) |
-| 9 | Bloomberg：苹果 CEO 施压软件负责人，Siri 要转向更激进的 AI 战略（探索"ChatGPT 化"） | [Bloomberg](https://www.bloomberg.com/news/newsletters/2026-11-08/apple-explores-turning-siri-ai-into-chatgpt-dots-like-agent-ios-28-shake-up) |
+| 9 | Bloomberg：苹果 CEO 施压软件负责人，Siri 要转向更激进的 AI 战略（探索"ChatGPT 化"） | [9to5Mac](https://9to5mac.com/2026/11/08/apple-working-on-agentic-siri-ai-next-year-report) |
 | 10 | HN 热议：《Quadrillion-parameter transformers and how to train them》——万亿参数级 transformer 的训练工程推演 | [qlabs.sh](https://qlabs.sh/research/parameters) |
 | 11 | arXiv：SwarmEvolve——潜在空间的 agent 蜂群做进化式发现与优化 | [arXiv](http://arxiv.org/abs/2611.08483v1) |
 | 12 | arXiv：StepBack——测试时推理的步骤级错误定位重采样，省 token 的新思路 | [arXiv](http://arxiv.org/abs/2611.08403v1) |
