@@ -23,6 +23,9 @@
 - [Q34. JVM 各内存区域分别会发生什么 OOM？线上 Metaspace OOM 如何排查？](#q34)（📅2026-11-04 ⭐4）
 - [Q35. 讲讲 HotSpot 的分层编译：Tier 0-4 各是什么？OSR 编译和 made not entrant 是怎么回事？](#q35)（📅2026-11-04 ⭐5）
 - [Q36. 强/软/弱/虚引用的区别与适用场景？PhantomReference 为什么 get() 永远返回 null？](#q36)（📅2026-11-04 ⭐4）
+- [Q55. 线上频繁 Full GC，你怎么排查？先说清 Full GC 到底会在哪些场景被触发](#q55)（📅2026-11-11 ⭐5）
+- [Q56. 对象什么时候从年轻代晋升到老年代？讲讲动态年龄判定、卡表和跨代引用](#q56)（📅2026-11-11 ⭐4）
+- [Q57. 类什么时候会被"初始化"？Class.forName 和 loadClass 差在哪？为什么类初始化死锁 jstack 都检测不出来](#q57)（📅2026-11-11 ⭐4）
 
 
 ### 并发（JMM/锁/AQS/虚拟线程/线程池）
@@ -3306,5 +3309,176 @@ LLM 自回归解码一次只能出 1 个 token，每步都要把整个大模型�
 **「追问陷阱」**
 1. **"接受率 70%，K=5，能加速 3.5 倍吗？"** —— 不能这么算。接受是**前缀式**的：第 i 个 token 只有在前面全被接受时才有意义，期望接受长度是 Σ 连乘接受率，不是 K×70%；且每轮还要加上 draft 的 K 次 forward 开销和验证失败的重采样。实际加速比 = 期望接受长度 / (1 + K×draft开销占比)，70% 链式接受率、K=5 的期望长度约 2.6，再扣开销，端到端常见 1.5-2.5 倍。会算这笔账才说明真懂。
 2. **"验证 K 个 token 时，位置 3 被拒了，位置 4、5 的验证结果还有用吗？KV Cache 怎么办？"** —— 位置 4、5 作废丢弃（它们基于错误前缀）。但 KV Cache 处理很优雅：验证 forward 已经把 K 个位置的 KV 都写进了 cache，接受前缀的部分直接保留，从拒绝位置起把 cache **回滚/截断**（vLLM 里按 num_accepted 调整 slot 映射），重采样的那个 token 复用拒绝位置已算好的 KV 槽位。能答到"cache 截断而非重算"是加分项。
+
+---
+
+<a id="q55"></a>
+
+### Q55. 线上频繁 Full GC，你怎么排查？先说清 Full GC 到底会在哪些场景被触发（🏷JVM 📅2026-11-11 ⭐难度5）
+
+**「考察点」** 能否把"Full GC"从模糊的恐惧变成一张精确的**触发场景清单**，并按"先定位触发原因 → 再定位分配来源"的框架排查，而不是上来就背调参口诀。
+
+**「参考答案」**
+
+**基础答案**：先对齐术语——Full GC（整堆回收：年轻代+老年代+元空间都扫，通常单线程 STW，停顿最长的一种回收）。注意不同收集器叫法不同：CMS/G1 日志里叫 `Pause Full`，Serial/Parallel 叫 `Full GC (原因)`。**排查第一步永远是看 GC 日志里的括号——触发原因（cause）就写在那里**，JDK 9+ 用 `-Xlog:gc*` 开启（JDK 8 是 `-XX:+PrintGCDetails -XX:+PrintGCDateStamps`）。常见触发原因清单：
+
+| 日志里的 cause | 含义 | 典型根因 |
+|---|---|---|
+| `Allocation Failure` / `Ergonomics` | 老年代放不下晋升对象 | 内存泄漏、堆太小、大对象、晋升过快 |
+| `System.gc()` | 代码显式调用 | 业务代码/RMI（老 JDK 每小时一次）/DirectByteBuffer 兜底/NIO 框架 |
+| `G1 Humongous Allocation` | 巨型对象（≥region 一半）分配失败 | 一次性申请大数组/大字符串，G1 特有 |
+| `Metadata GC Threshold` | Metaspace 到高水位 | 动态类失控（见 Q34） |
+| `Full GC (Heap Inspection Initiated GC)` | 有人执行了 jmap -histo:live / jcmd GC.class_stats | 运维工具自己触发的 |
+| `GCLocker Initiated GC` | JNI 临界区内分配 | JNI/NIO direct 操作 |
+| `Promotion Failed` / `Concurrent Mode Failure`（CMS） | 并发回收赶不上分配 | 老年代碎片（CMS）或回收速度不足 |
+
+**深入原理**：
+
+1）**每种 cause 我都用 JDK 17 实测复现过，日志长这样**（`-Xmx64m`）：
+
+内存泄漏型——一个静态 List 不停 add 1MB 数组，老年代撑满后：
+```
+[3.167s][info][gc] GC(9) Pause Full (Allocation Failure) 61M->61M(61M) 3.852ms
+```
+关键特征是**回收前后堆占用几乎不变（61M→61M）**——回收不掉说明对象全活着，是泄漏不是分配过快；连着几次 Full GC 都收不回内存，最后 `OutOfMemoryError: Java heap space`。
+
+显式调用型——循环里调 `System.gc()`：
+```
+[0.136s][info][gc,start] GC(1) Pause Full (System.gc())
+[0.139s][info][gc     ] GC(1) Pause Full (System.gc()) 5M->3M(17M) 2.287ms
+```
+特征是**堆明明很空（17M 只用了 5M）却 Full GC，且节奏和某段代码同步**。加 `-XX:+DisableExplicitGC` 后实测 0 次 Full GC（调用被静默忽略）。
+
+G1 巨型对象型——G1 下同样泄漏，触发路径不一样：对象 ≥ region 大小一半算 Humongous，直接进老年代连续 region，分配不出时先引发 `Pause Young (Concurrent Start) (G1 Humongous Allocation)`，并发标记来不及就退化成：
+```
+[1.587s][info][gc,start] GC(54) Pause Full (G1 Compaction Pause)
+[1.590s][info][gc     ] GC(54) Pause Full (G1 Compaction Pause) 61M->61M(64M) 2.175ms
+```
+G1 的 Full GC 是"并发机制失败后的单线程兜底压缩"，**看到 G1 Compaction Pause 就说明 G1 已经跟不上分配速度了**，这是严重信号。
+
+2）**标准排查路径**（先分类，再深挖）：
+
+```mermaid
+graph TD
+    A[监控报警: Full GC 频繁] --> B[拿 GC 日志看 cause]
+    B --> C{回收前后老年代降了吗?}
+    C -- 降不下去, 越Full GC后水位越高 --> D[泄漏型: jmap dump + MAT<br/>支配树找最大保留集]
+    C -- 能降, 但很快又满 --> E[分配/晋升过快型:<br/>async-profiler alloc 火焰图找分配热点]
+    B --> F[cause=System.gc] --> G[查调用方: 用 JFR 的 jdk.SystemGC 事件定位栈<br/>禁用前先想 DirectByteBuffer]
+    B --> H[cause=Humongous] --> I[找大对象: 调大 G1HeapRegionSize<br/>或改流式处理]
+    B --> J[cause=Metadata GC Threshold] --> K[Metaspace 问题, 见 Q34]
+```
+怎么读这张图：第一刀按 cause 分诊；第二刀看"回收效果"——**Full GC 后老年代水位是否回落**，这是区分"泄漏"和"分配过快"的黄金标准。泄漏型水位阶梯式上升，dump 后用 MAT 的支配树（Dominator Tree，谁"独占"了最多内存）找引用链；分配过快型用 async-profiler 的 `alloc` 模式抓分配火焰图，看哪个方法在疯狂造对象。
+
+3）**为什么 Full GC 比 Young GC 贵得多**：Young GC 只扫年轻代，且**只复制存活对象**（复制算法成本 ∝ 存活量，年轻代大部分是垃圾所以快）；Full GC 要标记-整理整个堆，存活对象全部要动，堆越大停顿越长。所以调优的第一原则不是"让 Full GC 更快"，而是**让它少发生**：把垃圾尽量在年轻代消灭（Eden 够大）、别让中等寿命对象过早晋升（见 Q56）。
+
+4）**System.gc() 的两个细节**：① `-XX:+DisableExplicitGC` 一刀切禁用有风险——`DirectByteBuffer` 堆外内存靠 Cleaner 在 GC 时释放，彻底禁用显式 GC 可能导致堆外内存暴涨，更稳的是 `-XX:+ExplicitGCInvokesConcurrent`（把 System.gc() 转成 CMS/G1 并发回收，不 STW Full GC）；② 定位谁在调：JDK 11+ 开 JFR（`jdk.SystemGC` 事件带完整调用栈），比字节码插桩省事得多。
+
+**「追问陷阱」**
+1. **"CMS 的 concurrent mode failure 和 G1 的 G1 Compaction Pause，本质是一回事吗？"** —— 是同一类问题（并发回收速度追不上分配速度，被迫退化为 STW 整堆回收），但成因不同：CMS 是老年代**碎片化**导致大对象无法分配（标记-清除不压缩），解法是 `-XX:CMSFullGCsBeforeCompaction` 或换 G1；G1 是 region 复制时**没有空闲 region 可用**（to-space exhausted），解法是调大堆、提早并发标记（`InitiatingHeapOccupancyPercent` 调低）、增大 `G1ReservePercent`。能区分"碎片"与"空间耗尽"是加分项。
+2. **"堆加大一倍，Full GC 问题就解决了吗？"** —— 泄漏型：只是推迟 OOM 时间，水位照样爬到顶。分配过快型：可能有效（Eden 变大 → Young GC 间隔变长 → 对象死在年轻代的概率变大 → 晋升量下降），但也可能更糟——堆越大单次 Full GC 停顿越长，且 G1 大堆下 region 数不变时 Humongous 阈值反而变化。正确姿势是先用 GC 日志分类，再决定是修代码（泄漏/大对象）还是调参（分代比例/回收器）。
+
+---
+
+<a id="q56"></a>
+
+### Q56. 对象什么时候从年轻代晋升到老年代？讲讲动态年龄判定、卡表和跨代引用（🏷JVM 📅2026-11-11 ⭐难度4）
+
+**「考察点」** 是否理解 Minor GC 的完整对象流转机制（Eden→Survivor→老年代）、晋升的四个触发条件，以及"为什么 Minor GC 也要扫一部分老年代"（卡表/RSet 解决的跨代引用问题）。
+
+**「参考答案」**
+
+**基础答案**：对象晋升老年代有 **4 条路**，多数人只能答出第 1 条：
+
+1. **年龄达标**：对象每熬过一次 Minor GC 且被复制进 Survivor，年龄 +1，达到 `-XX:MaxTenuringThreshold`（默认 15，因为年龄存在对象头的 4 bit 里，最大就是 15）就晋升；
+2. **动态年龄判定**：不用等到 15——Survivor 中**同年龄对象总大小超过 Survivor 空间的一半**时，年龄 ≥ 该年龄的对象全部直接晋升。这是为了防 Survivor 被"同龄人"挤爆；
+3. **Survivor 放不下（分配担保）**：Minor GC 后存活对象超过 Survivor 容量，直接通过分配担保机制进老年代；
+4. **大对象直接进老年代**：Serial/ParNew 用 `-XX:PretenureSizeThreshold` 控制；G1 是 ≥ region 一半的 Humongous 对象直接占连续 region（见 Q55）。
+
+**深入原理**：
+
+1）**动态年龄判定我在本机 JDK 17 实测复现了**（`-Xmn16m -XX:SurvivorRatio=8`，即 Survivor≈800KB；每轮造一个 256KB 的中等寿命对象，只活 4 轮）：
+
+```
+[gc,age] GC(3) Desired survivor size 819200 bytes, new threshold 1 (max threshold 15)
+[gc,age] GC(3) Age table with threshold 1 (max threshold 15)
+[gc,age] GC(3) - age   1:    1310752 bytes,    1310752 total
+[gc,age] GC(3) - age   2:     262160 bytes,    1572912 total
+[gc    ] GC(3) Pause Young (Allocation Failure) 14M->3M(30M) 0.717ms
+```
+怎么读：`-Xlog:gc+age=trace` 打开年龄表。Survivor 目标容量 819200 字节，但存活对象总量 1.5MB 远超其一半 → JVM 把晋升阈值**从 15 直接压到 1**——所有年龄 ≥1 的对象（也就是全部存活对象）本轮直接晋升。旁证是 GC 后堆残留从 1M 涨到 3M：那 256KB 的短寿命对象根本没在 Survivor 里停留，全被塞进了老年代。**工程含义**：Survivor 太小 + 中等寿命对象多（如批处理的临时大列表）→ 提前晋升 → 这些对象在老年代很快变垃圾 → 加速老年代增长 → 更频繁的 Full GC。排查口诀：看 `new threshold` 是否远小于 15、GC 后老年代增量是否异常，对策是加大 Survivor（调小 `SurvivorRatio`）或加大 `-Xmn`。
+
+2）**卡表（Card Table）：Minor GC 为什么不用扫整个老年代。** Minor GC 的根（GC Roots）是栈上引用、静态变量等，但还有一种隐蔽的引用：**老年代对象指向年轻代对象的字段**。如果不管它，Young 对象明明被 Old 对象引用着，却会因为"扫不到"而被误回收。暴力解法是 Minor GC 时扫描整个老年代找这类引用——太贵。HotSpot 的解法：把老年代按 **512 字节**切成"卡页（card page）"，用一个字节数组（卡表）记录每页状态；老年代对象的引用字段被写入年轻代对象时，JVM 通过**写屏障（write barrier，赋值语句前后插入的一小段钩子代码）**把对应卡页标"脏"。Minor GC 时只需把**脏卡**里的对象加入扫描范围（作为附加根），而不是全老年代。代价是每次引用赋值多几条指令，且卡表本身有维护成本（脏卡过多时 G1 会用 refinement 线程并发清理）。
+
+3）**G1 的升级版：RSet（Remembered Set，记忆集）**。G1 以 region 为单位回收，跨代引用推广成**跨 region 引用**："谁指向我"（points-into）。每个 region 有自己的 RSet 记录"哪些其他 region 的对象引用了我"，回收某 region 时只扫 RSet 登记的来源，不用扫全堆。RSet 靠写屏障 + 脏卡队列 + 并发 refinement 线程维护，**可能占堆的 5%~20%**——这就是"G1 大堆下内存开销比 CMS 高"的来源之一。（ZGC 干脆不要 RSet，用染色指针+读屏障反向解决，见 Q17。）
+
+4）**对象头里年龄只有 4 bit 的推论**：`MaxTenuringThreshold` 设成 16 以上无效（会被钳到 15）；而动态年龄判定的存在意味着**15 只是上限不是承诺**，面试答"活过 15 次 GC 才晋升"是不完整的。
+
+**「追问陷阱」**
+1. **"为什么不把 Survivor 设得特别大，让对象都在年轻代死掉？"** —— Survivor 大 → 同样 `-Xmn` 下 Eden 变小 → Minor GC 更频繁；且存活对象要在两块 Survivor 间**来回复制**，Survivor 越大存活集越大，单次 Minor GC 复制成本越高。经验上 `SurvivorRatio=8`（Eden:S0:S1=8:1:1）是默认平衡点；真正的问题是"中等寿命对象"（活过几次 GC 但终归会死，比如请求级缓存），它们天然属于 Survivor 管不住、老年代又不该收的灰色地带——这类负载模式（如批处理）常需要单独压测调 `-Xmn` 和 Survivor。
+2. **"写屏障和内存屏障（memory barrier）是一回事吗？"** —— 完全不是，面试高频混淆点。写屏障是 **JVM 在字节码/机器码层面插入的钩子代码**（引用赋值时更新卡表/RSet、G1 SATB 记录旧值），是 GC 正确性的机制；内存屏障是 **CPU 指令**（如 x86 的 lock 前缀），用于保证多线程下的可见性与有序性（JMM，见并发题）。共同点只是都叫"屏障"、都在"某个操作前后插入动作"。
+
+---
+
+<a id="q57"></a>
+
+### Q57. 类什么时候会被"初始化"？`Class.forName` 和 `loadClass` 差在哪？为什么类初始化死锁 jstack 都检测不出来（🏷JVM 📅2026-11-11 ⭐难度4）
+
+**「考察点」** 是否分得清类加载七阶段中"加载/链接"与"初始化"的界限，能否准确背出**主动引用的 6 种情形**与被动引用的例外，以及是否知道 `<clinit>` 的线程安全语义（初始化锁）与它的死锁陷阱。
+
+**「参考答案」**
+
+**基础答案**：类的生命周期：加载 → 验证 → 准备 → 解析 → **初始化（`<clinit>`：执行静态变量赋值和 static{} 块）** → 使用 → 卸载。前四步合称"链接"。**初始化是懒的**——只有"主动引用"才触发。JVM 规范定义的主动引用情形：
+
+1. `new`、读写静态字段（非编译期常量）、调用静态方法；
+2. 反射调用（`Class.forName(name)`，默认 initialize=true）；
+3. 初始化子类时，父类先初始化；
+4. 启动时的主类（含 main 的类）；
+5. MethodHandle/invokedynamic 解析结果对应的类；
+6. 接口中定义了 default 方法时，其实现类初始化会先初始化该接口。
+
+典型的**被动引用（不触发初始化）**：① 通过子类访问父类的静态字段——只初始化父类；② 定义类的数组 `Parent[] arr = new Parent[3]`——不初始化 Parent；③ 访问编译期常量（`static final` 且值在编译期可确定）——常量已被折叠进调用方的常量池，连类都不碰。
+
+**`Class.forName` vs `ClassLoader.loadClass`**：`loadClass` 只做到"加载"（把 .class 字节读进方法区、生成 Class 对象），**不链接不初始化**；`Class.forName(name)` 默认执行到初始化（可用 `Class.forName(name, false, loader)` 关闭）。经典应用：JDBC 驱动注册——`Class.forName("com.mysql.cj.jdbc.Driver")` 的目的就是触发 Driver 类 `<clinit>` 里的 `DriverManager.registerDriver(...)`，用 `loadClass` 驱动根本不会注册（JDBC 4.0 后靠 SPI 自动加载，显式 forName 已可省略）。
+
+**深入原理**：
+
+1）**以上全部结论本机 JDK 17 实测验证**（`-d` 编译后直接运行）：
+
+```
+[2] 访问编译期常量 ConstHolder.STR：
+    值 = 我是编译期常量            （ConstHolder 的 static{} 没有打印 => 未初始化）
+[3] 通过子类 Child.A 访问父类静态字段：
+  >> Parent <clinit> 执行
+    Child.A = 2                  （Child 的 static{} 没打印 => 只初始化声明者）
+[4] 访问 Child.B：
+  >> Child <clinit> 执行          （真正主动引用了 Child）
+[5] ClassLoader.loadClass("Late")： （无输出 => 只加载不初始化）
+[6] Class.forName("Late")：
+  >> Late <clinit> 执行            （forName 默认触发初始化）
+[7] static final int R = new Random(42).nextInt(100)：
+  >> RandomHolder <clinit> 执行    （运行期才能定的 final 不是编译期常量）
+```
+第 7 条是易错点：`static final` ≠ 编译期常量。**只有"基本类型/String + 编译期可确定的字面量/常量表达式"**（如 `static final String S = "a"+"b"`，编译器直接折叠成 `"ab"`）才会被内联进调用方；`new Random().nextInt()`、`static final long T = System.currentTimeMillis()` 这类要执行代码才有值的，照样触发 `<clinit>`。
+
+2）**`<clinit>` 的线程安全语义**：JVM 保证一个类的 `<clinit>` 在多线程下**只被执行一次**——实现方式是对 Class 对象加"初始化锁"（JDK 7+ 是每个类一个锁，不再锁全局）。第一个线程执行 `<clinit>`，其他线程阻塞等待；这正是"静态内部类单例（Holder 模式）天然线程安全且懒加载"的原理——不加锁、不 synchronized，靠 JVM 的类初始化锁免费获得。
+
+3）**初始化锁的阴暗面：类初始化死锁，且监控工具查不出来**。两个线程分别初始化 A、B，而 A 的 static{} 里 `new B()`、B 的 static{} 里 `new A()`，互相等对方的初始化锁。我实测复现（两线程 sleep 300ms 制造交叠），jstack 输出：
+
+```
+"T1" ... java.lang.Thread.State: RUNNABLE
+	at InitDeadlock2$A.<clinit>(InitDeadlock2.java:2)
+	- waiting on the Class initialization monitor for InitDeadlock2$B
+"T2" ... java.lang.Thread.State: RUNNABLE
+	at InitDeadlock2$B.<clinit>(InitDeadlock2.java:3)
+	- waiting on the Class initialization monitor for InitDeadlock2$A
+```
+三个惊悚细节：① 线程状态显示 **RUNNABLE 而不是 BLOCKED**（初始化锁用的是 monitor wait，不映射到 BLOCKED 状态）；② `ThreadMXBean.findDeadlockedThreads()` 返回 **null**、jstack 末尾**没有 "Found one Java-level deadlock" 段**——因为它只分析 monitor/synchronizer 的锁依赖图，类初始化锁不在其中；③ 只能靠人眼在 jstack 全文里 grep `waiting on the Class initialization monitor` 才能发现。**这就是"服务启动卡住、CPU 为 0、死锁检测说没事"的一类经典线上悬案的真相**。工程守则：static{} 里绝不做重活（网络调用、加载其他可能反向依赖的类、起线程）；复杂初始化挪到显式 `init()` 方法。
+
+4）**准备 vs 初始化的赋值时机**：准备阶段静态变量赋**零值**（`static int x = 5` 先变 0），初始化阶段才执行 `<clinit>` 赋成 5。经典陷阱：`<clinit>` 按源码顺序执行，若静态字段初始化器和 static{} 块顺序交错，会出现"读到零值"的中间态（A 的构造/静态逻辑里读到还没赋值的 B 字段）。
+
+**「追问陷阱」**
+1. **"接口有 `<clinit>` 吗？初始化子类接口会先初始化父接口吗？"** —— 接口也有 `<clinit>`（接口不能有 static{} 块，实测编译报错 `initializers not allowed in interfaces`，但接口字段赋值同样在 `<clinit>` 里执行）。区别：**初始化实现类不要求先初始化其接口**，只有用到接口的（非编译期常量）字段时才触发；且父接口只有在真正被用到时才初始化——比类的"父类必然先初始化"宽松。
+2. **"双亲委派保证同一个类只加载一次吗？什么情况下同一个 .class 会有两个 Class 对象？"** —— 双亲委派保证的是**同一个 ClassLoader 命名空间内**类唯一。Class 的相等性 = 全限定名 + ClassLoader 实例都相同；两个不同的 ClassLoader（如 Tomcat 两个 webapp、或自己 new 两个 URLClassLoader）加载同一个 .class，得到两个互不兼容的 Class——互相强转抛 `ClassCastException`，`instanceof` 为 false。这是热部署、OSGi、Tomcat 应用隔离的根基（呼应 Q18 打破双亲委派的场景）。
 
 ---
