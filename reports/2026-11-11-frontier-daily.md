@@ -32,11 +32,11 @@
 
 **💡 所以呢**：如果你在做 agent 编排，Fable 5.2 官方推荐的两个角色值得抄：Advisor（小模型遇到难题时向上咨询它）和 Orchestrator（它把简单活派给小模型）——配合本日 Meta Muse Ember 的发布（见下文），"大模型当大脑、小模型当手脚"的分工架构已经有了三家厂商的完整配套。
 
-[来源：Anthropic 官方](https://www.anthropic.com/claude-fable-and-mythos-5-2) · [CNBC 报道](https://www.cnbc.com/2026-11-09/anthropic-claude-fable-5-2-mythos-5-2.html) · [The Verge](https://www.theverge.com/ai-artificial-intelligence/1030005/anthropic-claude-fable-mythos-5-2) · [Simon Willison 快评](https://simonwillison.net/2026/Nov/10/prompting-claude-fable-52/)
+[来源：Anthropic 官方](https://www.anthropic.com/claude-fable-and-mythos-5-2) · [CNBC 报道](https://www.cnbc.com/2026/11/09/anthropic-claude-fable-5-2-mythos-5-2.html) · [The Verge](https://www.theverge.com/ai-artificial-intelligence/1030005/anthropic-claude-fable-mythos-5-2) · [Simon Willison 快评](https://simonwillison.net/2026/Nov/10/prompting-claude-fable-52/)
 
 ### 📰 LLM 要闻简报
 
-- **Meta 发布 Muse Ember：0.1 美元/百万 token 的"agent 打工模型"**：Meta 超智能实验室 11 月 9 日发布最轻量模型 Muse Ember，专为"agent 一天到晚重复干的活"设计：工具调用、编码子任务、路由、信息抽取、长文档解析。参照系：输入价 $0.10/百万 token，是 Claude Haiku 5.5 和 GPT-6 Luna 的零头，甚至比 DeepSeek V4.1 Flash 等开源模型还便宜；AutomationBench-AA 拿 37.8%，比 GPT-6 Luna 的 20.2% 和 Haiku 5.5 的 13.9% 高出一截。支持 1M token 上下文、原生理解文本/图像/音频/视频。官方定位说得直白："Muse Wonder 负责规划，Muse Ember 负责跑量"——大模型定规则，小模型批量执行。这与昨天日报里 Pinterest 用 4B Qwen3 的思路殊途同归：**行业正在为"agent 的体力活"单独造一个便宜模型品类**。[Meta 官方](https://research.meta.ai/blog/muse-ember) · [TechCrunch](https://techcrunch.com/2026-11-09/meta-releases-muse-ember-a-new-lightweight-model-for-agent-execution/) · [Simon Willison](https://simonwillison.net/2026/Nov/10/muse-ember/)
+- **Meta 发布 Muse Ember：0.1 美元/百万 token 的"agent 打工模型"**：Meta 超智能实验室 11 月 9 日发布最轻量模型 Muse Ember，专为"agent 一天到晚重复干的活"设计：工具调用、编码子任务、路由、信息抽取、长文档解析。参照系：输入价 $0.10/百万 token，是 Claude Haiku 5.5 和 GPT-6 Luna 的零头，甚至比 DeepSeek V4.1 Flash 等开源模型还便宜；AutomationBench-AA 拿 37.8%，比 GPT-6 Luna 的 20.2% 和 Haiku 5.5 的 13.9% 高出一截。支持 1M token 上下文、原生理解文本/图像/音频/视频。官方定位说得直白："Muse Wonder 负责规划，Muse Ember 负责跑量"——大模型定规则，小模型批量执行。这与昨天日报里 Pinterest 用 4B Qwen3 的思路殊途同归：**行业正在为"agent 的体力活"单独造一个便宜模型品类**。[Meta 官方](https://research.meta.ai/blog/muse-ember) · [TechCrunch](https://techcrunch.com/2026/11/09/meta-releases-muse-ember-a-new-lightweight-model-for-agent-execution/) · [Simon Willison](https://simonwillison.net/2026/Nov/10/muse-ember/)
 - **Google Gemini 4 Carbon 全面开放：$2/$10 每百万 token 打价格战**：两周前只给网络安全防御者试用的 Carbon，11 月 10 日起向所有开发者/企业/消费者开放，价格与 Argon 持平。官方主打：CursorBench 4.0、Perplexity WANDR、Zapier AutomationBench 三个独立基准第一，且单任务成本比第二名低 2 倍以上；网络安全方向称扫描召回率 100%、帮 Wiz 在两小时内挖出两个 SaaS 大厂的 0-day。同日还预告了 Antigravity 里的 `/swarm`：一条 prompt 变成一队可实时追踪的 agent。[Google 官方博客](https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-carbon-now-available/)
 - **Fireworks AI 安全事故波及 Notion：AI 推理供应商成了新的供应链软肋**：Fireworks AI（主流开源模型托管/推理平台）10 月遭遇入侵，11 月 9 日更新公告：攻击者经第三方云商摸进其研发机器，窃取了部分客户的 secrets、数据集与未完成模型；Notion 确认不到 1% 的工作区受影响，泄露的是 Insights 功能的"不可归因"聊天记录（未标注谁写的、来自哪个工作区）。攻击动机是 "LLMJacking"（偷 API 算力转卖到黑市路由网关）。Notion 已断开与 Fireworks 的一切连接、停用 Insights。**为什么重要**：企业把数据交给 AI 供应商做分类/推理已成常态，这次事故说明"你的模型供应商被打穿"是和"你自己被打穿"同级别的风险——选推理供应商要像选云厂商一样做安全尽调。[Fireworks 公告](https://fireworks.ai/security/bulletins/october-2026-security-incident-update) · [Notion 通告](https://www.notion.com/security/advisories/security-incident-involving-a-third-party-ai-vendor)
 - **DeepMind 发布 AlphaProof Code：AI 首次形式化验证 Signal 加密协议的真实代码**：多 agent 框架 + Lean（一种"证明必须过编译器级检查"的数学证明语言），对 libsignal 编译出的 AArch64 机器码证明了前向保密、后向破解安全等十条性质，生成 650 万行机器检查过的 Lean 证明，人类只需审 2.6 万行"规格说明"。参照系：传统方式（seL4 微内核）花了约 20 人年，这次用了 4 周。回归测试很硬核：把两个历史真实 bug 塞回代码，系统成功证明了"这版本不安全"。这是"AI 找漏洞"之后更进一步的"AI 数学证明没漏洞"。[DeepMind 博客](https://deepmind.google/blog/introducing-alphaproof-code/) · [技术页](https://google-deepmind.github.io/code-verification/) · [The Register 分析](https://www.theregister.com/ai-and-ml/2026-11-10/google-deepmind-melds-humans-and-ai-agents-to-vet-signals-secure-messaging-techniques/5308625)
@@ -85,7 +85,7 @@ flowchart LR
 
 **💡 所以呢**：盘点你系统里所有"让 LLM 从固定选项里挑一个"的调用点（路由、分类、打标、意图识别），算一下月账单；如果超过几千美元，值得花一周搭个 DUAL 档灰度试决策模型。GitHub：[strands-labs/strands-decider](https://github.com/strands-labs/strands-decider)。
 
-[来源：Strands 官方博客](https://strandsagents.com/blog/amazon-saves-millions-replacing-sonnet-with-strands-decider/) · [HN 讨论](https://news.ycombinator.com/item?id=50436640) · [TechCrunch 背景](https://techcrunch.com/2026-10-01/amazon-releases-its-own-jev-clone-as-decision-models-flood-the-web)
+[来源：Strands 官方博客](https://strandsagents.com/blog/amazon-saves-millions-replacing-sonnet-with-strands-decider/) · [HN 讨论](https://news.ycombinator.com/item?id=50436640) · [TechCrunch 背景](https://techcrunch.com/2026/10/01/amazon-releases-its-own-jev-clone-as-decision-models-flood-the-web/)
 
 ### 📰 Agent 要闻简报
 
@@ -103,7 +103,7 @@ flowchart LR
 
 ![G1 回收周期图](assets/2026-11-11/g1gc-cycle.png)
 
-*图：G1 垃圾回收周期示意——上半圈 Young-Only 阶段、下半圈 Space-Reclamation 阶段（出处：[Inside.java G1 教程](https://inside.java/2026-11-10/g1gc-tutorial/)）*
+*图：G1 垃圾回收周期示意——上半圈 Young-Only 阶段、下半圈 Space-Reclamation 阶段（出处：[Inside.java G1 教程](https://inside.java/2026/11/10/g1gc-tutorial/)）*
 
 **🎯 30 秒版本**：11 月 10 日 Inside.java（Oracle Java 团队官方博客）发布 G1 垃圾收集器完整教程。新闻点不在"G1 是什么"（它从 JDK 9 起就是服务器环境默认 GC），而在 **JDK 27 通过 JEP 523 让 G1 成为所有环境的默认 GC**——以前内存小于 1792MB 或单核机器会自动回落到 SerialGC（最古老、会长时间卡住应用的收集器），现在不会了。对写 Java 的你：升级 JDK 27 后，容器里的小内存服务 GC 行为会变，值得读一遍这篇。
 
@@ -123,13 +123,13 @@ flowchart LR
 
 **💡 所以呢**：把这篇加进团队升级 JDK 27 的 checklist：确认没有代码依赖 SerialGC 行为（比如某些老的性能测试脚本写死了 `-XX:+UseSerialGC`），并试用 GC 日志（`-Xlog:gc*`）对比升级前后的停顿分布。
 
-[来源：Inside.java 教程](https://inside.java/2026-11-10/g1gc-tutorial/) · [JEP 523](https://openjdk.org/jeps/523) · [官方 G1 调优指南](https://docs.oracle.com/en/java/javase/27/gctuning/garbage-first-g1-garbage-collector.html)
+[来源：Inside.java 教程](https://inside.java/2026/11/10/g1gc-tutorial/) · [JEP 523](https://openjdk.org/jeps/523) · [官方 G1 调优指南](https://docs.oracle.com/en/java/javase/27/gctuning/garbage-first-g1-garbage-collector.html)
 
 ### 📰 Java 要闻简报
 
-- **Spring for Apache Pulsar "改嫁"进 Apache 软件基金会**：11 月 10 日 Spring 官方博客宣布，Spring for Apache Pulsar（Spring 生态对接 Pulsar 消息队列的集成库）从 Spring 项目群迁出，成为 Apache Pulsar 的官方子项目，改名 "Apache Pulsar support for Spring"。**为什么重要**：这是"厂商中立化"的一步——集成代码的演进节奏从此跟着 Pulsar 社区走而不是 Spring 团队走，对重度用户的直接影响是 issue 和 release 渠道会变（迁移细节待官方后续公告）。消息中间件集成从框架方主导转向社区方主导，值得其他集成项目观察。[Spring 官方博客](https://spring.io/blog/2026-11-10/spring-pulsar-new-home-asf)
+- **Spring for Apache Pulsar "改嫁"进 Apache 软件基金会**：11 月 10 日 Spring 官方博客宣布，Spring for Apache Pulsar（Spring 生态对接 Pulsar 消息队列的集成库）从 Spring 项目群迁出，成为 Apache Pulsar 的官方子项目，改名 "Apache Pulsar support for Spring"。**为什么重要**：这是"厂商中立化"的一步——集成代码的演进节奏从此跟着 Pulsar 社区走而不是 Spring 团队走，对重度用户的直接影响是 issue 和 release 渠道会变（迁移细节待官方后续公告）。消息中间件集成从框架方主导转向社区方主导，值得其他集成项目观察。[Spring 官方博客](https://spring.io/blog/2026/11/10/spring-pulsar-new-home-asf)
 - **InfoQ Java 周报：A2A Java SDK 1.5.0、Quarkus 4.0 Beta3、Gradle 9.9 等一串更新**：亮点三条：① A2A Java SDK（Agent2Agent 协议的 Java 实现，让 Java 服务作为 agent 互相通信）1.5.0 加了 OpenTelemetry 推送通知追踪——agent 协议在 Java 生态持续落地；② Quarkus 4.0 第三个 Beta，Redis 客户端支持 Valkey（Redis 的开源分叉）；③ Gradle 9.9 的 Kotlin DSL 脚本支持增量编译，大项目构建再提速。另有 TornadoVM 8.1（Java 跑 GPU）、Open Liberty、EclipseStore 4.3（向量索引重构）等。[InfoQ](https://www.infoq.com/news/2026/11/java-news-roundup-nov02-2026/)
-- **Inside.java：Java 与下一代编程模型（Devoxx Belgium 演讲）**：Java 平台团队在 Devoxx 比利时站的演讲整理，讨论结构化并发、值类等特性如何共同构成"下一代编程模型"——与昨天日报的 Valhalla 值类实战（一个 int 装股票代号）是同一条叙事线：Java 正在把"高性能+安全抽象"作为未来五年的主轴。[Inside.java](https://inside.java/2026-11-08/devoxxbelgium-java-next-programming-models/)
+- **Inside.java：Java 与下一代编程模型（Devoxx Belgium 演讲）**：Java 平台团队在 Devoxx 比利时站的演讲整理，讨论结构化并发、值类等特性如何共同构成"下一代编程模型"——与昨天日报的 Valhalla 值类实战（一个 int 装股票代号）是同一条叙事线：Java 正在把"高性能+安全抽象"作为未来五年的主轴。[Inside.java](https://inside.java/2026/11/08/devoxxbelgium-java-next-programming-models/)
 - **InfoQ：Pinterest 和 Intel 把开源性能剖析推向互联网规模**：Pinterest 披露其生产环境持续 profiling（性能剖析，实时采集线上程序的性能数据）基础设施，与 Intel 合作开源。对 Java 服务端工程师：低开销持续剖析正在从大厂专属变成开源标配，是排查"生产环境偶发慢"的利器。[InfoQ](https://www.infoq.com/news/2026/11/pinterest-intel-profiling/)
 
 ---
