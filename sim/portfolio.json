@@ -1,242 +1,122 @@
 {
- "name": "全球配置组合",
- "start_date": "2026-11-01",
- "initial_capital": 20000.0,
- "cash": 14500.163280072435,
+ "name": "保守党模拟盘",
+ "start_date": "2026-10-28",
+ "initial_capital": 1000.0,
+ "cash": 273.8782252142954,
  "holdings": [
   {
-   "code": "513030",
-   "name": "德国ETF华安",
-   "shares": 200,
-   "avg_cost": 1.789,
-   "bought_at": "2026-11-01"
-  },
-  {
-   "code": "159920",
-   "name": "恒生ETF华夏",
-   "shares": 300,
-   "avg_cost": 1.358,
-   "bought_at": "2026-11-01"
-  },
-  {
-   "code": "513180",
-   "name": "恒生科技ETF华夏",
-   "shares": 600,
-   "avg_cost": 0.468,
-   "bought_at": "2026-11-01"
+   "code": "515100",
+   "name": "红利低波100ETF景顺",
+   "shares": 450,
+   "avg_cost": 1.431,
+   "bought_at": "2026-10-28"
   },
   {
    "code": "518880",
    "name": "黄金ETF华安",
-   "shares": 450,
-   "avg_cost": 8.270111111111111,
-   "bought_at": "2026-11-01"
-  },
-  {
-   "code": "511010",
-   "name": "国债ETF国泰",
-   "shares": 3,
-   "avg_cost": 141.123,
-   "bought_at": "2026-11-01"
-  },
-  {
-   "code": "511260",
-   "name": "十年国债ETF国泰",
-   "shares": 2,
-   "avg_cost": 135.327,
-   "bought_at": "2026-11-01"
+   "shares": 10,
+   "avg_cost": 8.226,
+   "bought_at": "2026-10-28"
   }
  ],
  "history": [
   {
-   "date": "2026-11-01",
-   "equity": 20000.0,
-   "cash": 16439.03,
-   "market_value": 3560.97,
+   "date": "2026-10-28",
+   "equity": 1000.0,
+   "cash": 273.79,
+   "market_value": 726.21,
    "return_pct": 0.0
   },
   {
+   "date": "2026-10-29",
+   "equity": 1003.59,
+   "cash": 273.8,
+   "market_value": 729.79,
+   "return_pct": 0.359
+  },
+  {
+   "date": "2026-10-30",
+   "equity": 1007.45,
+   "cash": 273.8,
+   "market_value": 733.65,
+   "return_pct": 0.745
+  },
+  {
    "date": "2026-11-02",
-   "equity": 19997.31,
-   "cash": 16439.41,
-   "market_value": 3557.9,
-   "return_pct": -0.013
+   "equity": 1009.33,
+   "cash": 273.82,
+   "market_value": 735.51,
+   "return_pct": 0.933
   },
   {
    "date": "2026-11-03",
-   "equity": 19975.55,
-   "cash": 15405.76,
-   "market_value": 4569.79,
-   "return_pct": -0.122
+   "equity": 1017.02,
+   "cash": 273.83,
+   "market_value": 743.19,
+   "return_pct": 1.702
   },
   {
    "date": "2026-11-04",
-   "equity": 20023.23,
-   "cash": 17412.56,
-   "market_value": 2610.67,
-   "return_pct": 0.116
+   "equity": 1015.82,
+   "cash": 273.83,
+   "market_value": 741.99,
+   "return_pct": 1.582
   },
   {
    "date": "2026-11-05",
-   "equity": 20067.89,
-   "cash": 17412.96,
-   "market_value": 2654.93,
-   "return_pct": 0.339
+   "equity": 1016.39,
+   "cash": 273.84,
+   "market_value": 742.55,
+   "return_pct": 1.639
   },
   {
    "date": "2026-11-06",
-   "equity": 20004.25,
-   "cash": 14498.49,
-   "market_value": 5505.76,
-   "return_pct": 0.021
+   "equity": 1019.23,
+   "cash": 273.85,
+   "market_value": 745.38,
+   "return_pct": 1.923
+  },
+  {
+   "date": "2026-11-09",
+   "equity": 1020.47,
+   "cash": 273.87,
+   "market_value": 746.6,
+   "return_pct": 2.047
+  },
+  {
+   "date": "2026-11-10",
+   "equity": 1018.45,
+   "cash": 273.87,
+   "market_value": 744.58,
+   "return_pct": 1.845
   },
   {
    "date": "2026-11-11",
-   "equity": 20027.36,
-   "cash": 14500.16,
-   "market_value": 5527.2,
-   "return_pct": 0.137
+   "equity": 1011.52,
+   "cash": 273.88,
+   "market_value": 737.64,
+   "return_pct": 1.152
   }
  ],
  "trades": [
   {
-   "date": "2026-11-01",
+   "date": "2026-10-28",
    "action": "BUY",
-   "code": "513100",
-   "name": "纳指ETF国泰",
-   "shares": 200,
-   "price": 2.239,
-   "amount": 447.8
+   "code": "515100",
+   "name": "红利低波100ETF景顺",
+   "shares": 450,
+   "price": 1.431,
+   "amount": 643.95
   },
   {
-   "date": "2026-11-01",
-   "action": "BUY",
-   "code": "513500",
-   "name": "标普500ETF博时",
-   "shares": 200,
-   "price": 2.657,
-   "amount": 531.4
-  },
-  {
-   "date": "2026-11-01",
-   "action": "BUY",
-   "code": "513030",
-   "name": "德国ETF华安",
-   "shares": 200,
-   "price": 1.789,
-   "amount": 357.8
-  },
-  {
-   "date": "2026-11-01",
-   "action": "BUY",
-   "code": "513520",
-   "name": "日经ETF华夏",
-   "shares": 200,
-   "price": 2.18,
-   "amount": 436.0
-  },
-  {
-   "date": "2026-11-01",
-   "action": "BUY",
-   "code": "159920",
-   "name": "恒生ETF华夏",
-   "shares": 300,
-   "price": 1.358,
-   "amount": 407.4
-  },
-  {
-   "date": "2026-11-01",
-   "action": "BUY",
-   "code": "513180",
-   "name": "恒生科技ETF华夏",
-   "shares": 600,
-   "price": 0.468,
-   "amount": 280.8
-  },
-  {
-   "date": "2026-11-01",
+   "date": "2026-10-28",
    "action": "BUY",
    "code": "518880",
    "name": "黄金ETF华安",
-   "shares": 50,
-   "price": 8.115,
-   "amount": 405.75
-  },
-  {
-   "date": "2026-11-01",
-   "action": "BUY",
-   "code": "511010",
-   "name": "国债ETF国泰",
-   "shares": 3,
-   "price": 141.123,
-   "amount": 423.37
-  },
-  {
-   "date": "2026-11-01",
-   "action": "BUY",
-   "code": "511260",
-   "name": "十年国债ETF国泰",
-   "shares": 2,
-   "price": 135.327,
-   "amount": 270.65
-  },
-  {
-   "date": "2026-11-03",
-   "action": "BUY",
-   "code": "513500",
-   "name": "标普500ETF博时",
-   "shares": 400,
-   "price": 2.585,
-   "amount": 1034.0
-  },
-  {
-   "date": "2026-11-04",
-   "action": "SELL",
-   "code": "513100",
-   "name": "纳指ETF国泰",
-   "shares": 200,
-   "price": 2.235,
-   "amount": 447.0,
-   "realized_pnl": -0.8
-  },
-  {
-   "date": "2026-11-04",
-   "action": "SELL",
-   "code": "513500",
-   "name": "标普500ETF博时",
-   "shares": 600,
-   "price": 2.599,
-   "amount": 1559.4,
-   "realized_pnl": -6.0
-  },
-  {
-   "date": "2026-11-06",
-   "action": "SELL",
-   "code": "513520",
-   "name": "日经ETF华夏",
-   "shares": 200,
-   "price": 2.005,
-   "amount": 401.0,
-   "realized_pnl": -35.0
-  },
-  {
-   "date": "2026-11-06",
-   "action": "BUY",
-   "code": "518880",
-   "name": "黄金ETF华安",
-   "shares": 200,
-   "price": 8.294,
-   "amount": 1658.8
-  },
-  {
-   "date": "2026-11-06",
-   "action": "BUY",
-   "code": "518880",
-   "name": "黄金ETF华安",
-   "shares": 200,
-   "price": 8.285,
-   "amount": 1657.0
+   "shares": 10,
+   "price": 8.226,
+   "amount": 82.26
   }
  ],
- "updated_at": "2026-11-11T15:00:45"
+ "updated_at": "2026-11-11T16:30:08"
 }
