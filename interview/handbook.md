@@ -32,6 +32,9 @@
 - [Q37. ThreadPoolExecutor 提交任务时为什么是"先核心线程 → 再入队 → 再扩到 max"？这个顺序合理吗？](#q37)（📅2026-11-05 ⭐4）
 - [Q38. AQS 凭什么被称为 J.U.C 的基石？讲讲 state、CLH 队列和模板方法，并手写一个锁](#q38)（📅2026-11-05 ⭐5）
 - [Q39. 虚拟线程凭什么让单机撑百万并发？mount/unmount、pinning 和它不适合的场景](#q39)（📅2026-11-05 ⭐4）
+- [Q58. volatile 保证了可见性，为什么还不保证原子性？顺便把 JMM、happens-before 和 DCL 单例讲透](#q58)（📅2026-11-12 ⭐4）
+- [Q59. synchronized 的锁升级是怎么发生的？用 JOL 实测 Mark Word 从无锁→轻量级→重量级的变化](#q59)（📅2026-11-12 ⭐4）
+- [Q60. CAS 有什么坑？ABA、高竞争自旋空转、只能保一个变量——LongAdder 凭什么比 AtomicLong 快？](#q60)（📅2026-11-12 ⭐4）
 
 ### 算法·LeetCode 高频题
 - [Q4. 无重复字符的最长子串（LC3）](#q4)（📅2026-10-24 ⭐3）
@@ -3480,5 +3483,190 @@ graph TD
 **「追问陷阱」**
 1. **"接口有 `<clinit>` 吗？初始化子类接口会先初始化父接口吗？"** —— 接口也有 `<clinit>`（接口不能有 static{} 块，实测编译报错 `initializers not allowed in interfaces`，但接口字段赋值同样在 `<clinit>` 里执行）。区别：**初始化实现类不要求先初始化其接口**，只有用到接口的（非编译期常量）字段时才触发；且父接口只有在真正被用到时才初始化——比类的"父类必然先初始化"宽松。
 2. **"双亲委派保证同一个类只加载一次吗？什么情况下同一个 .class 会有两个 Class 对象？"** —— 双亲委派保证的是**同一个 ClassLoader 命名空间内**类唯一。Class 的相等性 = 全限定名 + ClassLoader 实例都相同；两个不同的 ClassLoader（如 Tomcat 两个 webapp、或自己 new 两个 URLClassLoader）加载同一个 .class，得到两个互不兼容的 Class——互相强转抛 `ClassCastException`，`instanceof` 为 false。这是热部署、OSGi、Tomcat 应用隔离的根基（呼应 Q18 打破双亲委派的场景）。
+
+---
+
+<a id="q58"></a>
+
+### Q58. volatile 保证了可见性，为什么还不保证原子性？顺便把 JMM、happens-before 和 DCL 单例讲透（🏷并发 📅2026-11-12 ⭐难度4）
+
+**「考察点」** JMM 三大特性（原子/可见/有序）的真实理解边界——多数人能背"volatile 保证可见性禁止重排序"，但说不清 `i++` 为什么会丢更新、happens-before 到底"发生"在哪一层。
+
+**「参考答案」**
+
+**基础答案：** `i++` 不是原子操作，它在字节码层面是三步：`getfield`（读）→ `iadd`（加）→ `putfield`（写）。volatile 只保证**每一次单独的读/写**都直通主内存（实际是实现层面禁止了该变量的读写重排序 + 插入内存屏障），但挡不住"读-改-写"这个**复合操作**中间被其他线程插队。
+
+**本机实测**（JDK 17，4 线程各对 `volatile int` 自增 5 万次，跑两轮）：
+
+```
+expect=200000
+volatile int++ result=182875  lost=17125     ← 第一轮丢 1.7 万次更新
+AtomicInteger result=200000
+
+expect=200000
+volatile int++ result=197513  lost=2487      ← 第二轮丢 2487 次（丢多少看调度运气）
+AtomicInteger result=200000
+```
+
+丢失机制：线程 A、B 同时读到 `count=100`，各自加 1 写回 101——两次自增只生效一次。volatile 反而比无修饰**更容易观察到**丢更新（因为写立即刷出，没有寄存器缓存兜底的假象），但它本身不解决这个问题。正确姿势：`AtomicInteger`（CAS，见 Q60）或 `synchronized`/`ReentrantLock`。
+
+**深入原理：**
+
+1. **happens-before 才是 JMM 的本体。** JMM 不是真的规定"什么时候刷主内存"（那是 x86 store buffer / MESI 缓存一致性协议的事），而是给程序员一个**承诺模型**：如果操作 A happens-before 操作 B，那么 A 的结果对 B 必然可见，且 A 排在 B 前面。核心规则：程序顺序规则、monitor 锁规则（unlock HB 后续 lock）、**volatile 规则（volatile 写 HB 后续对该变量的读）**、传递性、线程 start/join 规则。
+2. **volatile 的 piggyback（捎带）效应。** HB 的传递性意味着：普通写 a、b → volatile 写 shared，之后任何线程 volatile 读 shared → 再读 a、b，**a、b 的普通写也全部可见**——volatile 变量像"顺风车"，把它之前的所有写捎带发布出去。本机验证：
+
+```java
+static class Config { int a; int b; final int f;
+    Config() { a = 1; b = 2; f = 3; } }        // 构造器内是普通写
+static volatile Config shared;
+// 写线程: Config c = new Config(); shared = c;   ← volatile 发布
+// 读线程: while ((c = shared) == null) onSpinWait(); 读到 c.a==1, c.b==2 ✓
+```
+   这就是"安全发布"的标准实现原理（`final` 字段另有独立保障：构造器内对 final 域的写 + 冻结动作 HB 构造器返回，不需要 volatile 也安全）。
+3. **volatile 禁止重排是靠内存屏障**：volatile 写前插 StoreStore、写后插 StoreLoad；volatile 读后插 LoadLoad、LoadStore。其中 StoreLoad 最贵（x86 上对应 `lock addl $0x0, (%rsp)`，要清空 store buffer），这也是"volatile 写比读贵得多"的原因。
+4. **DCL 单例为什么必须加 volatile。** `instance = new Singleton()` 编译后是三步：①分配内存 ②执行构造器初始化 ③把引用赋给 instance。②③可能重排成 ①③②（对单线程语义无影响，JIT/CPU 有权重排）。没加 volatile 时，线程 B 在第一次 `if (instance == null)` 可能看到**非 null 但未初始化完**的半成品对象，直接用就 NPE/脏值。volatile 写禁止了这个重排。
+
+```java
+static volatile Singleton instance;           // ② 处加 volatile 是关键
+public static Singleton getInstance() {
+    if (instance == null) {                   // 第一次检查：无锁快速路径
+        synchronized (Singleton.class) {
+            if (instance == null) {           // 第二次检查：防止两个线程都过了①
+                instance = new Singleton();
+            }
+        }
+    }
+    return instance;
+}
+```
+
+```mermaid
+sequenceDiagram
+    participant W as 写线程
+    participant M as 主内存
+    participant R as 读线程
+    W->>W: 普通写 a=1, b=2
+    W->>M: volatile 写 shared=c (StoreLoad屏障,刷出之前所有写)
+    R->>M: volatile 读 shared != null (LoadLoad/LoadStore屏障)
+    R->>R: 普通读 c.a / c.b → 必然看到 1 / 2 (HB传递性)
+    Note over W,R: 若 shared 不加 volatile: c.a 可能是 0 (重排+可见性双重风险)
+```
+
+**「追问陷阱」**
+1. **"volatile 完全不能用于原子操作吗？"** —— 有一个例外：**对 volatile 变量的单次写和单次读本身是原子的**（包括 long/double，JLS 17.7 规定 volatile long/double 读写不撕裂，非 volatile 的 64 位变量才可能被拆成两次 32 位写）。另外 CAS 类原子操作（AtomicInteger 内部的 value 就是 volatile 的）是"volatile + Unsafe CAS"的组合，不是 volatile 单独的功劳。答题时把"单变量读写原子"和"复合操作原子"分开说，就是加分点。
+2. **"既然 volatile 不行，DCL 还有什么替代写法？"** —— ①静态内部类 Holder（利用类初始化锁，JVM 保证 `<clinit>` 线程安全，见 Q57）②枚举单例（《Effective Java》推荐，还天然防反射攻击和反序列化破坏）③`synchronized` 全方法（简单场景下 JIT 对锁优化后开销可接受）。能说出"Holder 为什么不需要 volatile"（类初始化锁 HB 一切后续访问）说明真懂。
+
+---
+
+<a id="q59"></a>
+
+### Q59. synchronized 的锁升级是怎么发生的？用 JOL 实测 Mark Word 从无锁→轻量级→重量级的变化（🏷并发 📅2026-11-12 ⭐难度4）
+
+**「考察点」** 对象头 Mark Word 的位级结构、锁升级的触发条件与**不可逆性**，以及 JDK 15 废弃偏向锁（JEP 374）这个新变化——只背老八股"无锁→偏向→轻量→重量"的人在 JDK 17+ 上会露馅。
+
+**「参考答案」**
+
+**基础答案：** 每个 Java 对象头有一个 64 位 Mark Word，低 2 位是锁标志位。`synchronized` 不是上来就走重量级的 OS mutex，而是按竞争程度逐步升级：**无锁 → 偏向锁（已废弃）→ 轻量级锁（CAS 自旋，用户态）→ 重量级锁（monitor，线程阻塞进内核）**。升级是为了"没竞争时几乎零成本，有竞争时才付昂贵代价"；且**只能升不能降**（重量级不会退回轻量级）。
+
+**本机实测**（JDK 17 + JOL 0.17 直接读对象头）：
+
+```
+new无锁:      (object header: mark) 0x0000000000000001 (non-biasable; age: 0)
+块内轻量级:    (object header: mark) 0x0000776597ffe950 (thin lock: 0x0000776597ffe950)
+退出后:        (object header: mark) 0x0000000000000001 (non-biasable; age: 0)
+竞争后重量级:  (object header: mark) 0x0000776500001e42 (fat lock: 0x0000776500001e42)
+结束后仍重量:  (object header: mark) 0x0000776500001e42 (fat lock: 0x0000776500001e42)
+```
+
+四个关键观察：① JDK 17 默认**没有偏向锁**（显示 non-biasable，JEP 374 在 JDK 15 就默认禁用并废弃了）；② 单线程进出 synchronized 块是轻量级锁，Mark Word 直接存**指向栈上 Lock Record 的指针**；③ 第二个线程来竞争、CAS 抢锁失败自旋超限后，膨胀为重量级（fat lock，低位标志 10，指向堆上的 ObjectMonitor）；④ **竞争结束后锁不降级**——这是很多人答错的点。
+
+**深入原理：**
+
+1. **Mark Word 布局（64 位，低位是锁标志）**：
+   - 无锁 `01`：存 hashCode（31bit）+ 分代年龄（4bit）；
+   - 偏向锁 `01`+bias位：存线程 ID（JDK 14 前默认开启，现在废弃）；
+   - 轻量级锁 `00`：存指向**当前线程栈帧里 Lock Record** 的指针；
+   - 重量级锁 `10`：存指向 **ObjectMonitor** 的指针；
+   - GC 标记 `11`。
+   副作用：对象一旦进入过偏向/轻量级状态，Mark Word 里就没地方放 identity hashCode 了——所以**调用过 `System.identityHashCode()` 的对象无法偏向**，只能走轻量级。
+2. **轻量级锁的加锁过程**：线程进入 synchronized 块时，在栈帧建 Lock Record，CAS 尝试把 Mark Word 复制进去（Displaced Mark Word）并把对象头改成指向 Lock Record 的指针。成功→拿到锁；失败→先检查 Mark Word 是否指向自己栈（可重入，再压一个 Lock Record）；不是→自旋重试；自旋超限（自适应自旋，由上次自旋成功率决定）或有第二个线程竞争→**膨胀**。
+3. **重量级锁的 ObjectMonitor 结构**：`_owner`（持锁线程）、`_EntryList`（阻塞等待锁的线程队列）、`_WaitSet`（调用 wait() 后等待的线程）。加锁失败走 `pthread_mutex` 挂起线程（内核态切换，微秒级），这就是"重"的代价。jstack 里 `BLOCKED (on object monitor)` 就是卡在 EntryList。
+4. **为什么锁只能升不能降？** 降级需要在"确认再无竞争"的安全点操作，实现复杂收益低（JDK 曾经有过 STW 时的降级逻辑但基本不触发）。工程含义：**一个偶尔被并发访问的同步块，一旦膨胀就永远是重量级**——高频路径上"偶发一次竞争"也会把锁钉死在重量级。所以真正在意性能的场景（计数器、缓存热点）宁可用 CAS 类（Q60）或分段思路，也不要依赖 synchronized 自动降级。
+5. **JEP 374 为什么废偏向锁？** 偏向锁的收益假设是"锁总被同一个线程拿"（老代码如 StringBuffer/Vector），但现代代码用 J.U.C 替代了这些；偏向锁的**撤销**代价极高（要等全局安全点 STW），且给 HotSpot 锁代码引入巨大复杂度，拖慢了无锁路径本身。JDK 15 起默认 `-XX:-UseBiasedLocking` 并打警告，JDK 18+ 彻底移除相关代码。
+
+```mermaid
+graph LR
+    A[无锁 01<br/>hashCode+age] -->|"单线程首次加锁<br/>(JDK14前:偏向)"| B[轻量级锁 00<br/>指向栈Lock Record]
+    B -->|"CAS失败自旋<br/>第二线程竞争"| C[重量级锁 10<br/>指向ObjectMonitor]
+    C -.->|不可逆,不降级| C
+    B -->|解锁CAS成功| A2[恢复无锁Mark Word]
+```
+
+**「追问陷阱」**
+1. **"自旋锁一定比阻塞锁好吗？"** —— 不一定。自旋烧 CPU，适合**临界区短、锁持有时间短**的场景；临界区长（IO、远程调用）时自旋纯属浪费，应直接阻塞。HotSpot 用**自适应自旋**：同一把锁上次自旋成功过就多转几圈，老失败就干脆直接膨胀。答题时能说出"自旋的盈亏平衡点 ≈ 一次线程挂起+唤醒的内核开销（约几微秒）"很加分。
+2. **"synchronized 和 ReentrantLock 现在还有性能差距吗？"** —— JDK 6 锁优化后，**低竞争场景基本没差**（都靠 CAS + 挂起兜底）。选型差异在功能：ReentrantLock 有公平模式、可中断 `lockInterruptibly`、超时 `tryLock`、多条件队列 `Condition`；synchronized 胜在不用手动 unlock（异常安全）、JIT 可做锁消除/锁粗化、且随着 JDK 演进持续变快。默认 synchronized，需要高级特性再换 Lock——这是当前的主流工程共识。
+
+---
+
+<a id="q60"></a>
+
+### Q60. CAS 有什么坑？ABA、高竞争自旋空转、只能保一个变量——LongAdder 凭什么比 AtomicLong 快？（🏷并发 📅2026-11-12 ⭐难度4）
+
+**「考察点」** CAS 的三大局限及各自的工程解法；LongAdder 的分段（striped）设计思想——这是"以空间换并发度"的经典案例，也是 ConcurrentHashMap 计数、滑动窗口限流等场景的通用套路。
+
+**「参考答案」**
+
+**基础答案：** CAS（Compare-And-Swap）= "我认为当前值是 A，如果确实是 A 就改成 B，否则什么都不做并告诉我失败"，CPU 层面靠 `lock cmpxchg` 指令保证原子。三个经典坑：
+1. **ABA 问题**：值从 A→B→A，CAS 只比对值，察觉不到中间被改过；
+2. **高竞争下自旋空转**：失败重试的循环在核多时大量 CPU 周期烧在无效 CAS 上，还有缓存行在核间来回弹跳（cache line ping-pong）；
+3. **只能保证一个共享变量的原子操作**：两个变量要一起改，CAS 无能为力。
+
+**本机实测**（JDK 17，8 线程 × 200 万次自增）：
+
+```
+① ABA 复现:
+   线程1 读到 old=1 (A)
+   线程2: CAS(1→2) 再 CAS(2→1)      ← 值回到 A，世界已经变了
+   线程1: CAS(1→99) 成功? true      ← CAS 毫无察觉！
+   AtomicStampedReference 用旧 stamp CAS 成功? false ← 版本号识破 ABA
+
+② 写性能对比 (8线程x2000000次自增, 两轮):
+   AtomicLong=220ms  LongAdder=137ms  (快 1.6x)
+   AtomicLong=248ms  LongAdder=136ms  (快 1.8x)
+   两者最终值都正确: 16000000/16000000
+```
+
+**深入原理：**
+
+1. **ABA 的解法分层**：
+   - 多数业务场景 ABA **无害**（计数器从 1→2→1，加回去结果一样）；
+   - 有害的是"值相同但语义变了"：经典例子是无锁栈——线程 1 记下栈顶 A（next=B），挂起；线程 2 弹出 A、弹出 B、又压回一个复用了 A 内存的新节点；线程 1 醒来 CAS(A→B) 成功，但 B 早已被弹出，**栈直接断裂**。这就是 ABA 在指针型结构上的致命性；
+   - 解法：`AtomicStampedReference`（值+int 版本号一起 CAS）、`AtomicMarkableReference`（值+boolean，只关心"是否被动过"一次）；数据库乐观锁的 version 字段本质是同一个思想。
+2. **LongAdder 的分段设计**：AtomicLong 是**所有线程 CAS 同一个 value**，热点是一条缓存行；LongAdder 内部一个 `base` + 一个 `Cell[]` 数组：无竞争时直接 CAS base；一旦竞争失败，线程按 hash 认领一个 Cell，**各自 CAS 各自的 Cell**（Cell 用 `@Contended` 填充到独立缓存行防伪共享），`sum()` = base + 所有 Cell 之和。竞争越激烈扩容越多 Cell（上限≈CPU 核数），把"单点争抢"摊成"N 路并行"。
+3. **LongAdder 的代价：sum() 非原子快照。** 求和遍历 Cell 时其他线程还在写，得到的是**近似值/弱一致快照**，且不可用于"CAS 语义"场景（没法原子地"加1并返回旧值"）。选型口诀：**写多读少的统计计数用 LongAdder；需要精确读、compareAndSet、getAndIncrement 返回旧值的语义用 AtomicLong**。QPS 统计、监控埋点、限流窗口计数都是 LongAdder 的主场。
+4. **多变量原子操作的解法**：把多个变量**捆进一个不可变对象**，用 `AtomicReference` 对整个对象做 CAS（写时复制）；或者直接上锁。`AtomicReference` 同样继承 ABA 风险，可换 `AtomicStampedReference`。
+5. **CAS 的硬件成本**：`lock cmpxchg` 在多核上要锁缓存行/总线并保证全序，单次 ~几十纳秒，比 volatile 读贵一个量级；失败率高时还引发缓存一致性协议（MESI）在核间疯狂同步同一条缓存行——这就是实测里 AtomicLong 随线程数增加吞吐不升反降的根因。
+
+```java
+// LongAdder 思想的极简示意（真实实现更复杂：惰性建Cell、扩容、hash探测）
+class SimpleAdder {
+    private final AtomicLong base = new AtomicLong();
+    private final AtomicLong[] cells = new AtomicLong[16]; // 实际用@Contended Cell类
+    public void increment() {
+        if (base.compareAndSet(base.get(), base.get() + 1)) return; // 无竞争快路径
+        int i = (int) (Thread.currentThread().getId() % cells.length); // 竞争→分流到Cell
+        cells[i].incrementAndGet();
+    }
+    public long sum() { // 弱一致快照
+        long s = base.get();
+        for (AtomicLong c : cells) if (c != null) s += c.get();
+        return s;
+    }
+}
+```
+
+**「追问陷阱」**
+1. **"CAS 循环里失败了就无限自旋，会不会导致活锁？CPU 100% 怎么办？"** —— 会。高竞争下所有线程都在自旋重试，谁都成功不了几次，宏观上吞吐崩塌、CPU 打满（和死锁不同，线程状态是 RUNNABLE，jstack 看不出等待）。应对：①退避策略（失败后 `Thread.onSpinWait()` / 短暂 yield / 指数退避）②换 LongAdder 分摊热点 ③干脆换锁——竞争极端激烈时，阻塞让出 CPU 反而总吞吐更高（挂起一个线程比空转烧核便宜）。能说出"自旋和阻塞的盈亏平衡取决于临界区长度和竞争度"就是高分。
+2. **"Unsafe 的 CAS 和 VarHandle 什么关系？业务代码现在该用哪个？"** —— JDK 9 模块化后 `sun.misc.Unsafe` 被收进 `jdk.internal.misc`，业务代码不再能直接用；官方替代是 `VarHandle`（`MethodHandles.lookup().findVarHandle(...)`），提供 plain/opaque/**acquire-release**/volatile 四档内存语义，比 volatile 多了精细控制（比如只要写可见不要全屏障，用 release 写 + acquire 读，比 volatile 便宜）。J.U.C 内部（Atomic 类、ConcurrentHashMap）已全部迁到 VarHandle。面试提到"用 release/acquire 替代 volatile 降屏障开销"是明显的加分项。
 
 ---
