@@ -15,6 +15,9 @@
 - [Q40. FactoryBean 是什么？它和 BeanFactory 有什么区别？MyBatis 的 Mapper 接口为什么能被 @Autowired？](#q40)（📅2026-11-06 ⭐3）
 - [Q41. Spring 事件机制：@EventListener 默认是同步还是异步？@TransactionalEventListener 凭什么做到"事务提交后才通知"？](#q41)（📅2026-11-06 ⭐4）
 - [Q42. 事务传播行为：REQUIRED、REQUIRES_NEW、NESTED 三者到底差在哪？各自适合什么场景？](#q42)（📅2026-11-06 ⭐4）
+- [Q61. @Configuration 的 proxyBeanMethods：Full 模式和 Lite 模式差在哪？为什么 @Bean 方法互相调用还能保证单例？](#q61)（📅2026-11-13 ⭐4）
+- [Q62. 从浏览器发出请求到 Controller 返回 JSON，讲讲 DispatcherServlet 的完整处理流程](#q62)（📅2026-11-13 ⭐3）
+- [Q63. Spring 的单例 Bean 是线程安全的吗？把 prototype Bean 注入单例 Bean 会发生什么，怎么解？](#q63)（📅2026-11-13 ⭐4）
 
 ### JVM（内存模型/GC/类加载/JIT）
 - [Q16. 对象一定分配在堆上吗？讲讲逃逸分析、标量替换和 TLAB](#q16)（📅2026-10-28 ⭐4）
@@ -3668,5 +3671,218 @@ class SimpleAdder {
 **「追问陷阱」**
 1. **"CAS 循环里失败了就无限自旋，会不会导致活锁？CPU 100% 怎么办？"** —— 会。高竞争下所有线程都在自旋重试，谁都成功不了几次，宏观上吞吐崩塌、CPU 打满（和死锁不同，线程状态是 RUNNABLE，jstack 看不出等待）。应对：①退避策略（失败后 `Thread.onSpinWait()` / 短暂 yield / 指数退避）②换 LongAdder 分摊热点 ③干脆换锁——竞争极端激烈时，阻塞让出 CPU 反而总吞吐更高（挂起一个线程比空转烧核便宜）。能说出"自旋和阻塞的盈亏平衡取决于临界区长度和竞争度"就是高分。
 2. **"Unsafe 的 CAS 和 VarHandle 什么关系？业务代码现在该用哪个？"** —— JDK 9 模块化后 `sun.misc.Unsafe` 被收进 `jdk.internal.misc`，业务代码不再能直接用；官方替代是 `VarHandle`（`MethodHandles.lookup().findVarHandle(...)`），提供 plain/opaque/**acquire-release**/volatile 四档内存语义，比 volatile 多了精细控制（比如只要写可见不要全屏障，用 release 写 + acquire 读，比 volatile 便宜）。J.U.C 内部（Atomic 类、ConcurrentHashMap）已全部迁到 VarHandle。面试提到"用 release/acquire 替代 volatile 降屏障开销"是明显的加分项。
+
+---
+
+---
+
+<a id="q61"></a>
+
+### Q61. @Configuration 的 proxyBeanMethods：Full 模式和 Lite 模式差在哪？为什么 @Bean 方法互相调用还能保证单例？（🏷Spring 📅2026-11-13 ⭐难度4）
+
+**「考察点」** 配置类的 CGLIB 增强机制——这是 Spring 里"看起来是普通 Java 方法调用，实际被容器劫持"的最典型案例，能同时考 IoC、代理和 Spring Boot 工程实践。
+
+**「参考答案」**
+
+**基础答案：**
+
+`@Configuration` 有个属性 `proxyBeanMethods`，默认 `true`：
+
+- **Full 模式**（`proxyBeanMethods = true`）：Spring 启动时会用 CGLIB 给配置类生成一个**子类代理**。你在 `@Bean` 方法 A 里直接调用 `@Bean` 方法 B，实际调的是代理拦截后的逻辑——先去容器里查 B 对应的单例，**有就直接返回容器里那个，没有才真正执行方法体创建**。所以无论调用多少次 `serviceB()`，拿到的都是同一个单例，Bean 之间的依赖关系也和 XML 时代一致。
+- **Lite 模式**（`proxyBeanMethods = false`）：配置类就是一个普通类，不做任何增强。`@Bean` 方法之间直接 Java 调用，就是**老老实实执行方法体、new 一个新对象**——这个新对象游离于容器之外，单例语义被破坏，也不会走完整的 Bean 生命周期（没有依赖注入、没有 Aware 回调、没有初始化钩子）。
+
+```java
+@Configuration(proxyBeanMethods = false) // Lite 模式
+public class AppConfig {
+    @Bean
+    public ServiceA serviceA() {
+        return new ServiceA(serviceB()); // ⚠️ 这里 new 了一个"野生" ServiceB，
+    }                                    //    和容器里的那个 serviceB 单例不是同一个对象！
+    @Bean
+    public ServiceB serviceB() {
+        return new ServiceB();
+    }
+}
+```
+
+Lite 模式下表达 Bean 间依赖的正确姿势是**方法参数注入**：
+
+```java
+@Configuration(proxyBeanMethods = false)
+public class AppConfig {
+    @Bean
+    public ServiceA serviceA(ServiceB b) { // Spring 按类型从容器解析参数，传进来的就是单例 b
+        return new ServiceA(b);
+    }
+    @Bean
+    public ServiceB serviceB() {
+        return new ServiceB();
+    }
+}
+```
+
+**深入原理：**
+
+1. **谁做的增强？** `ConfigurationClassPostProcessor`——它是一个 `BeanFactoryPostProcessor`，在容器刷新早期（`invokeBeanFactoryPostProcessors` 阶段）扫描出所有配置类，对 Full 模式的类调用 `ConfigurationClassEnhancer` 生成 CGLIB 子类，并把**注册进容器的 BeanDefinition 的 beanClass 替换成这个子类**。所以你 `getBean(AppConfig.class)` 拿到的实际是 `AppConfig$$SpringCGLIB$$0`。
+
+2. **拦截器干了什么？** 增强类里挂了一条拦截器链，核心是 `BeanMethodInterceptor`。当 `serviceB()` 被调用时，它先判断这次调用的语义：
+   - 如果是**容器在创建 Bean**（工厂方法回调，栈上有 Bean 创建的标记）→ 放行，真正执行方法体；
+   - 如果是**普通 Java 代码调用**（比如另一个 @Bean 方法里调它）→ 转为 `beanFactory.getBean("serviceB")`，从容器拿现成单例。
+   这就是"方法调用被偷换成容器查找"的真相。
+
+3. **Full 模式的代价与限制。** CGLIB 靠**继承+覆写**实现，所以：配置类**不能是 final**（没法继承）、`@Bean` 方法**不能是 private 或 final**（没法覆写，private 方法上的调用完全绕过拦截，Spring 检测到时直接不增强该方法）。另外子类代理本身有生成开销，启动更慢。
+
+4. **Lite 模式并非"缺陷版"。** 它的适用面其实更广：
+   - `@Component` 类里写 `@Bean` 方法，天然就是 Lite 模式；
+   - Spring Boot 官方所有自动配置类（`XxxAutoConfiguration`）几乎都声明 `proxyBeanMethods = false`——自动配置类的 @Bean 方法之间基本用参数注入表达依赖，不需要方法互调劫持，关掉它能明显加快启动（每个配置类少一次 CGLIB 子类生成）；
+   - GraalVM Native Image / Spring AOT 场景下，运行期动态生成子类很不友好，Lite 模式是默认推荐（`@Configuration(proxyBeanMethods = false)` 或直接 `@AutoConfiguration`，后者默认就是 false）。
+
+```mermaid
+flowchart TD
+    A[容器刷新早期<br/>ConfigurationClassPostProcessor 扫描配置类] --> B{proxyBeanMethods?}
+    B -- true（Full） --> C[CGLIB 生成子类代理<br/>BeanDefinition 的类替换为代理类]
+    C --> D["@Bean 方法互调时<br/>拦截器偷换成 getBean()<br/>永远拿到容器单例"]
+    B -- false（Lite） --> E[普通类，不增强<br/>启动快 / AOT 友好]
+    E --> F["方法互调 = 普通 Java 调用<br/>会 new 出容器外的野对象<br/>依赖请用参数注入表达"]
+```
+
+怎么读这张图：分水岭就在 `proxyBeanMethods` 一个布尔值上——true 换来"方法调用被容器劫持"的便利，false 换来启动速度和 AOT 兼容，但要求你改用参数注入表达依赖。
+
+**「追问陷阱」**
+
+1. **"什么时候你**必须**用 Full 模式（或者必须避免 Lite 模式的方法互调）？"** —— 当 @Bean 方法之间存在**直接的 Java 方法调用依赖**，且你不想（或没法）改成参数注入时，典型如：`@Bean Router router() { return new Router(filterA(), filterB()); }` 这种写法在 Lite 模式下 filterA/filterB 都是野对象。反过来，如果你的配置类全部用参数注入表达依赖，就应该主动关掉 proxyBeanMethods——这是 Spring Boot 2.2+ 官方推荐写法。能说出"Boot 自动配置类默认全是 false"是加分项。
+2. **"这个 CGLIB 增强和 Spring AOP 的 CGLIB 代理是一回事吗？"** —— 不是。AOP 代理是**运行期针对目标 Bean 的方法做横切增强**，由 `AbstractAutoProxyCreator`（一个 BeanPostProcessor）在 Bean 初始化后生成；配置类增强发生在**更早的 BeanFactoryPostProcessor 阶段**，增强的是"工厂方法调用语义"，走的是 `ConfigurationClassEnhancer` 自己的一套拦截器链，和 AOP 基础设施（Advisor/Pointcut）完全无关。两者恰好都用了 CGLIB 这个字节码库而已（Spring 6 内嵌的是 repackaged 的 CGLIB，且底层逐步转向 ByteBuddy 无关的实现细节不必展开）。
+
+---
+
+<a id="q62"></a>
+
+### Q62. 从浏览器发出请求到 Controller 返回 JSON，讲讲 DispatcherServlet 的完整处理流程（🏷Spring 📅2026-11-13 ⭐难度3）
+
+**「考察点」** Spring MVC 的骨架：前端控制器模式下九大组件如何协作。这题几乎必考，答得有没有"组件名+职责"的颗粒度，直接区分背过和用过。
+
+**「参考答案」**
+
+**基础答案（先给主干，6 步）：**
+
+所有请求先打到 `DispatcherServlet`（前端控制器，本质是一个 Servlet，Spring Boot 里由 `DispatcherServletAutoConfiguration` 注册并映射到 `/`）。它自己不干业务，只负责调度：
+
+1. **找处理器**：遍历所有 `HandlerMapping`（最常用的是 `RequestMappingHandlerMapping`），根据 URL + HTTP 方法匹配出目标 handler（你的 `@RequestMapping` 方法）以及要经过的拦截器，包成一个 `HandlerExecutionChain`。匹配不到 → 404 逻辑。
+2. **找适配器**：根据 handler 的类型选出 `HandlerAdapter`。为什么要多一层适配器？因为 Spring MVC 支持的 handler 形态很多——注解方法（`RequestMappingHandlerAdapter`）、实现 `Controller` 接口的老式类、`HttpRequestHandler`（静态资源）……适配器把它们统一成 `handle(request, response, handler)` 一种调用方式，这是**适配器模式**的教科书应用。
+3. **拦截器前置**：依次执行拦截器链的 `preHandle`，任何一个返回 false 就中断。
+4. **执行 handler**：`HandlerAdapter` 调用 Controller 方法，前后各做两件大事——
+   - **参数解析**：`HandlerMethodArgumentResolver` 逐个解析方法参数。`@RequestBody` 交给 `HttpMessageConverter`（如 Jackson 的 `MappingJackson2HttpMessageConverter`）把请求体反序列化成对象；`@PathVariable`/`@RequestParam` 从 URI 模板和查询串提取并做类型转换；`Model`/`HttpServletRequest` 等特殊类型直接注入。
+   - **返回值处理**：`HandlerMethodReturnValueHandler` 处理返回结果。`@ResponseBody`（含 `@RestController`）走 `HttpMessageConverter` 把对象序列化成 JSON **直接写进响应输出流**，此时没有视图概念；返回字符串视图名则组装 `ModelAndView` 交给 `ViewResolver` 渲染。
+5. **拦截器后置**：`postHandle`（逆序执行），随后若有视图则渲染。
+6. **异常兜底**：以上任何一步抛异常，进入 `processDispatchResult` 的异常分支，由 `HandlerExceptionResolver` 处理——最常见的是 `ExceptionHandlerExceptionResolver`，去匹配 `@ExceptionHandler`（本 Controller 内的或 `@ControllerAdvice` 全局的），把异常转换成一个正常的响应（比如统一的错误 JSON）。全都没人处理才抛给容器变成 500 页面。最后执行拦截器 `afterCompletion`。
+
+**深入原理：**
+
+- **九大组件从哪来？** `DispatcherServlet` 首次处理请求（或启动时 `onRefresh`）会初始化一组组件：MultipartResolver、LocaleResolver、ThemeResolver、**HandlerMapping（可多个，有 order 排序）**、**HandlerAdapter**、HandlerExceptionResolver、RequestToViewNameTranslator、ViewResolver、FlashMapManager。默认清单写死在 jar 包里的 `DispatcherServlet.properties`，可以通过上下文里注册同类型 Bean 覆盖——又是一处"约定优于配置 + SPI 默认值"的设计，和 Spring Boot 自动装配同源。
+- **URL 映射是启动时建好的索引。** `RequestMappingHandlerMapping` 在启动阶段扫描所有 `@RequestMapping`，把"URL 模式 + 方法 + 参数条件"注册进内部 `MappingRegistry`（多级 Map：直接路径查字典树式的 `pathLookup`，带通配的路径走 `PathPattern` 匹配）。所以运行期匹配是查表，不是反射扫描——这也解释了为什么改了注解必须重启才生效。
+- **@ResponseBody 的写回细节。** `RequestResponseBodyMethodProcessor` 处理返回值时，根据请求头 `Accept` 和返回类型做**内容协商**（ContentNegotiation），选中一个 `HttpMessageConverter`，调用 `write()` 序列化到 `response.getOutputStream()`。写完直接 flush，`ModelAndView` 为 null，流程跳过视图渲染。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器
+    participant D as DispatcherServlet（总调度）
+    participant HM as HandlerMapping（查路由表）
+    participant HA as HandlerAdapter（统一调用）
+    participant C as Controller 方法
+    participant MC as HttpMessageConverter（JSON 读写）
+
+    B->>D: HTTP 请求
+    D->>HM: 这个 URL 归谁管？
+    HM-->>D: handler + 拦截器链
+    D->>D: 拦截器 preHandle
+    D->>HA: handle(request, response, handler)
+    HA->>MC: @RequestBody → 反序列化参数
+    HA->>C: 反射调用（参数已解析好）
+    C-->>HA: 返回对象
+    HA->>MC: @ResponseBody → 序列化成 JSON 写入响应流
+    D->>D: postHandle / 异常走 HandlerExceptionResolver
+    D->>D: afterCompletion
+    D-->>B: HTTP 响应
+```
+
+怎么读这张时序图：DispatcherServlet 全程是"包工头"，路由查询、参数绑定、方法调用、序列化各外包给一个专职组件——记住"Mapping 找谁、Adapter 去调、Resolver 解析参数和返回值、Converter 读写报文体"这四组分工，流程就串起来了。
+
+**「追问陷阱」**
+
+1. **"拦截器和过滤器有什么区别？执行顺序谁先谁后？"** —— Filter 是 **Servlet 规范**的组件，由 Servlet 容器管理，在 DispatcherServlet **之前**执行，能拦截一切请求（包括静态资源、404），但它拿不到"这个请求将交给哪个 Controller 方法"的信息，且原生场景下不方便注入 Spring Bean（Spring Boot 里可以通过 FilterRegistrationBean 间接解决）。Interceptor 是 **Spring MVC 层**的，在 DispatcherServlet 内部执行，能拿到 `HandlerMethod`（因此可以读方法上的注解做权限校验），本身就是 Spring Bean。完整顺序：**Filter → Interceptor.preHandle → Controller → Interceptor.postHandle → 视图渲染 → Interceptor.afterCompletion → Filter 返回**。注意 `afterCompletion` 在异常时也会执行（类似 finally），是做链路清理的可靠位置。
+2. **"请求体只能读一次，有个 Filter 记日志把 body 读了，Controller 的 @RequestBody 就报错了，为什么？怎么办？"** —— `HttpServletRequest` 的 InputStream 是网络流，读完即尽。解决：用 `ContentCachingRequestWrapper`（或自定义 wrapper）在 Filter 里把 body 缓存进字节数组再包装请求，`getInputStream()` 每次返回基于缓存的新流。能主动说出这个坑基本可以确认候选人真写过全局日志/签名校验 Filter。
+
+---
+
+<a id="q63"></a>
+
+### Q63. Spring 的单例 Bean 是线程安全的吗？把 prototype Bean 注入单例 Bean 会发生什么，怎么解？（🏷Spring 📅2026-11-13 ⭐难度4）
+
+**「考察点」** Bean 作用域的真实语义 + "注入发生一次"这个关键认知。第二问是区分"用过 Spring"和"理解 Spring"的经典分水岭。
+
+**「参考答案」**
+
+**基础答案：**
+
+**第一问：不是。** 要拆成两层说：
+
+- Spring 的 singleton 是**容器级单例**——同一个 ApplicationContext 里该 BeanDefinition 只创建一个实例（不是 JVM 级，两个容器可以各有一个）。
+- Spring **不负责**单例 Bean 的线程安全，线程安全是 Bean 自己的事。实际开发中绝大多数 Bean（Controller/Service/Repository）是**无状态的**——只有注入的依赖和方法内的局部变量，没有可变成员字段。局部变量在各自线程的栈上，天然隔离，所以"看起来"线程安全。
+- 一旦单例 Bean 里有**可变成员变量**（计数器、缓存 Map、SimpleDateFormat 这种非线程安全对象），多线程并发访问就有竞态，Spring 不会救你。
+
+**第二问：prototype 会"退化"成单例。** 依赖注入只在**单例 Bean 被创建时发生一次**——Spring 创建单例 A 时调用一次 `getBean("protoB")` 拿到一个 prototype 实例塞进去，之后 A 一直持有这同一个实例。运行期再也不会触发第二次 getBean，prototype 的"每次都是新的"语义完全失效。这是高频生产 bug：比如把一个"每次请求新建的任务上下文对象"声明成 prototype 注入单例 Service，结果所有请求共享一个上下文，数据互相污染。
+
+**深入原理——三种解法，本质都是"注入获取渠道，而不是注入实例"：**
+
+**① ObjectProvider（推荐，编程式）**：注入的是一个"延迟的获取器"，每次调 `getObject()` 都走一遍 `getBean()`，prototype 就每次都是新的。
+
+```java
+@Component
+public class TaskProcessor { // 单例
+    private final ObjectProvider<ReportTask> taskProvider; // 注入的是"渠道"
+
+    public TaskProcessor(ObjectProvider<ReportTask> taskProvider) {
+        this.taskProvider = taskProvider;
+    }
+
+    public void run() {
+        ReportTask task = taskProvider.getObject(); // ✅ 每次调用都拿到全新 prototype 实例
+        task.execute();
+    }
+}
+```
+
+`ObjectProvider` 还有一组容错方法：`getIfAvailable()`（没有就返回 null / 执行兜底 lambda）、`getIfUnique()`（同类型多个候选时只有唯一 @Primary 才返回）——它同时也是替代 `@Autowired(required = false)` 的官方推荐方式。
+
+**② @Lookup 方法注入（声明式）**：在单例 Bean 里声明一个抽象方法并打 `@Lookup`，Spring 用 CGLIB 生成子类覆写它，方法体偷换成 `getBean(返回类型)`。
+
+```java
+@Component
+public abstract class TaskProcessor { // 注意：类不能是 final，方法不能是 private
+    @Lookup
+    protected abstract ReportTask newTask(); // CGLIB 覆写为 return beanFactory.getBean(ReportTask.class)
+
+    public void run() {
+        newTask().execute(); // 每次调用都从容器现取，prototype 语义恢复
+    }
+}
+```
+
+**③ 作用域代理（Scope Proxy）**：在 prototype 一方声明 `@Scope(value = "prototype", proxyMode = ScopedProxyMode.TARGET_CLASS)`，注入到单例里的是一个 CGLIB 代理，代理的每个方法调用都先 `getBean()` 拿新实例再转发。注意代理方式对 prototype 反而**不常用**——因为"每次方法调用都换新对象"往往不是你想要的语义（`task.setA(); task.run();` 两句操作的是两个不同实例，状态丢了！）。它真正的主场是 **request/session 作用域**：单例 Service 注入一个 request-scope Bean 的代理，运行期代理通过 `RequestContextHolder`（ThreadLocal 存的当前请求上下文）找到**当前线程这个请求**对应的实例——单例安全地"引用"了一个生命周期比它短得多的 Bean。
+
+```mermaid
+flowchart LR
+    S[单例 Service<br/>容器启动时创建一次] -->|"直接注入 ❌"| P1[prototype 实例 #1<br/>之后所有请求共用它]
+    S -->|"注入 ObjectProvider / @Lookup / 作用域代理 ✅"| CH[获取渠道]
+    CH -->|每次调用| P2[新实例 #2]
+    CH -->|每次调用| P3[新实例 #3]
+```
+
+怎么读这张图：问题的根源是"注入是一次性动作，而 prototype 要求获取是重复动作"——所有解法都在把"实例"换成"每次现取的通道"。
+
+**「追问陷阱」**
+
+1. **"prototype Bean 的销毁方法（@PreDestroy）为什么从来不执行？"** —— 容器对 prototype 的策略是"**只管生不管养**"：创建、装配、初始化之后就交给你，不再持有引用（否则每个 prototype 都留在容器里，内存泄漏且失去意义），因此销毁回调也不会触发。如果 prototype 持有文件句柄/连接这类资源，必须**使用方自己释放**（try-finally / try-with-resources）。对比：singleton 的销毁回调由容器在 `close()` 时统一触发。这个不对称是考察"是否真读过作用域文档"的细节题。
+2. **"单例 Bean 里有个 SimpleDateFormat 成员变量，线上偶发解析出错误日期，为什么？怎么修？"** —— SimpleDateFormat 内部用 `Calendar` 成员变量存中间状态，多线程并发 `format/parse` 会互相踩数据（轻则结果错乱，重则抛 NumberFormatException/数组越界）。修法按优先级：① 换 `DateTimeFormatter`（java.time，不可变、线程安全，可直接 static final）；② 降级方案 `ThreadLocal<SimpleDateFormat>`（注意线程池场景必须 remove，否则线程复用导致泄漏）；③ 或者把它也做成 prototype 用 ObjectProvider 现取。这个案例是把"单例线程安全"从概念落到真实故障的经典追问。
 
 ---
