@@ -42,7 +42,7 @@
 - **Gemini Decisions API 上线（11-11）**：Google DeepMind 推出"只做决定、不写文章"的专用端点 `gemini-decision-1`——输入多模态内容，输出选项/分数/路由决策，$0.10/百万输入 token、**输出 token 免费**。这是继 Jev、OpenAI 之后第三家把"决策模型"做成独立产品品类：agent 里大量"选哪个工具/该不该拦截"的小判断，没必要用会写作文的贵模型。Simon Willison 点评：品类已成气候。[Google 博客](https://blog.google/innovation-and-ai/technology/developers-tools/gemini-decisions-api/) · [Simon Willison](https://simonwillison.net/2026/Nov/11/gemini-decisions-api/)
 - **OpenAI 完成 $15B 融资，估值 $1.25 万亿（11-12 CNBC 证实）**：只有最初目标（$30B @ $1.4T）的一半，但比 3 月那轮（$852B）仍高 47%。同期 Anthropic IPO 定价区间 $70–78、传闻银行考虑抬到 $1.5T+ 估值——AI 双雄在资本市场正面相撞。对工程师的含义：两家的烧钱竞赛短期不会停，模型价格战还会继续。[Yahoo Finance/CNBC](https://finance.yahoo.com/markets/stocks/articles/openai-reportedly-raises-15b-1-192622324.html)
 - **Unsloth 放出 Qwen3.8-27B 动态量化 v3.1（HN 热帖）**：Dynamic v3.1 用"逐层敏感度分析"决定每层量化位宽，27B 模型可压进消费级显卡且质量损失极小——本地跑通义最新中型模型的最短路径。[Unsloth 文档](https://unsloth.ai/docs/models/qwen3.8)
-- **密歇根大学研究：生成式 AI 处理非英语文本更耗电（HN 热帖）**：同样语义的内容，非英语 token 更多 → 推理能耗更高。参照系：全球多数人口母语非英语，"AI 能耗账本"存在系统性语言偏差。[U-Michigan News](https://news.umich.edu/generative-ai-uses-more-energy-on-non-english-text/)
+- **密歇根大学研究：生成式 AI 处理非英语文本更耗电（HN 热帖）**：同样语义的内容，非英语 token 更多 → 推理能耗更高。参照系：全球多数人口母语非英语，"AI 能耗账本"存在系统性语言偏差。[Futurity/U-Michigan](https://futurity.org/generative-ai-energy-non-english-text-3352352)
 
 ---
 
@@ -140,7 +140,7 @@ graph TD
 | 10 | 🤖 Agent | arXiv：**SynthCorp**——批量合成"数据 agent"评测基准的平台，专治基准饱和 | [arXiv:2611.14765](https://arxiv.org/abs/2611.14765) |
 | 11 | ☕ Java | InfoQ：Node.js 把 debounce/throttle/PKCS#12 解析收进核心模块（服务端 JS 生态动向，Java 团队做 BFF 可关注） | [InfoQ](https://www.infoq.com/news/2026/11/nodejs-debounce-throttle/) |
 | 12 | ☕ Java | InfoQ：Google Cloud Compute Engine API 改为不可变日期版本号——云 API 版本策略对 Java SDK 使用者的影响 | [InfoQ](https://www.infoq.com/news/2026/11/compute-engine-api-versioning/) |
-| 13 | 🌐 综合 | 意大利因 Android 用户数据访问问题对 Meta 罚款 $8.87 亿（Reuters） | [Reuters](https://www.reuters.com/world/italy-fines-meta-887-million-over-android-users-data-access-2026-11-14/) |
+| 13 | 🌐 综合 | 意大利因 Android 用户数据访问问题对 Meta 罚款 $8.87 亿（Reuters） | [Guardian(Reuters)](https://www.theguardian.com/technology/2026/nov/15/italy-fines-meta-887m-for-accessing-android-users-photos-and-videos) |
 | 14 | 🌐 综合 | FAA 发布全美 ground stop（停飞令），4.5 小时后解除；HN 网友实时航图围观 | [NBC News](https://www.nbcnews.com/news/us-news/faa-orders-nationwide-ground-stop-departing-flights-reasons-safety-rcna609247) |
 | 15 | 🌐 综合 | GitHub 新星：**FrigadeHQ/yogurt**（1.4k★）——完全本地运行的开源 AI 会议纪要（Granola 替代品）；**agentes-chat**（1.38k★）——人类+AI agent 同频道的自托管 Slack 替代 | [yogurt](https://github.com/FrigadeHQ/yogurt) · [agentes-chat](https://github.com/agentes-chat/agentes-chat) |
 
