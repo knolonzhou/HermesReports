@@ -2,7 +2,7 @@
  "name": "全球配置组合",
  "start_date": "2026-11-01",
  "initial_capital": 20000.0,
- "cash": 14498.494960104423,
+ "cash": 14501.831822730417,
  "holdings": [
   {
    "code": "513030",
@@ -89,6 +89,27 @@
    "cash": 14498.49,
    "market_value": 5505.76,
    "return_pct": 0.021
+  },
+  {
+   "date": "2026-11-11",
+   "equity": 20027.36,
+   "cash": 14500.16,
+   "market_value": 5527.2,
+   "return_pct": 0.137
+  },
+  {
+   "date": "2026-11-12",
+   "equity": 19925.26,
+   "cash": 14500.5,
+   "market_value": 5424.76,
+   "return_pct": -0.374
+  },
+  {
+   "date": "2026-11-16",
+   "equity": 19800.5,
+   "cash": 14501.83,
+   "market_value": 5298.67,
+   "return_pct": -0.997
   }
  ],
  "trades": [
@@ -231,5 +252,5 @@
    "amount": 1657.0
   }
  ],
- "updated_at": "2026-11-06T14:51:08"
+ "updated_at": "2026-11-16T15:05:41"
 }
