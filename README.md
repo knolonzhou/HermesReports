@@ -112,6 +112,7 @@ HermesReports/
 ## 📖 最新内容
 
 ### 前沿日报
+- [2026-11-17 前沿日报](reports/2026-11-17-frontier-daily.md)
 - [2026-11-16 前沿日报](reports/2026-11-16-frontier-daily.md)
 - [2026-11-15 前沿日报](reports/2026-11-15-frontier-daily.md)
 - [2026-11-14 前沿日报](reports/2026-11-14-frontier-daily.md)
@@ -139,7 +140,6 @@ HermesReports/
 - [2026-10-22 前沿日报](reports/2026-10-22-frontier-daily.md)
 - [2026-10-21 前沿日报](reports/2026-10-21-frontier-daily.md)
 - [2026-10-20 前沿日报](reports/2026-10-20-frontier-daily.md)
-- [2026-10-19 · Spring Boot / Java 定时任务前沿调研](reports/2026-10-19-spring-boot-scheduling-frontier.md)
 
 ### 购物比价
 - [2026-10-22 · SATA 硬盘全网比价大数据报告](shopping/reports/2026-10-22-sata-storage-deals-bigdata.md)
