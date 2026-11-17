@@ -29,6 +29,9 @@
 - [Q55. 线上频繁 Full GC，你怎么排查？先说清 Full GC 到底会在哪些场景被触发](#q55)（📅2026-11-11 ⭐5）
 - [Q56. 对象什么时候从年轻代晋升到老年代？讲讲动态年龄判定、卡表和跨代引用](#q56)（📅2026-11-11 ⭐4）
 - [Q57. 类什么时候会被"初始化"？Class.forName 和 loadClass 差在哪？为什么类初始化死锁 jstack 都检测不出来](#q57)（📅2026-11-11 ⭐4）
+- [Q76. 一个 Java 对象在堆里到底占多少字节？对象头、字段重排和压缩指针（JOL 实测）](#q76)（📅2026-11-18 ⭐4）
+- [Q77. 字符串常量池和 intern() 到底怎么工作？为什么 "ja"+"va" 拼接后 intern 的结果和 "hello" 不一样？](#q77)（📅2026-11-18 ⭐4）
+- [Q78. 线程栈里到底存了什么？-Xss 设多大合适，为什么递归深度实测和"帧大小"对不上？](#q78)（📅2026-11-18 ⭐3）
 
 
 ### 并发（JMM/锁/AQS/虚拟线程/线程池）
@@ -4745,5 +4748,158 @@ flowchart TD
 2. **"子 Agent 之间需要共享信息怎么办？全靠 lead 中转吗？"** —— 三种模式及取舍：①**lead 全中转**（星型）：简单可控，但 lead 上下文可能成为新瓶颈、且串行化通信；②**共享外部状态**（文件系统/黑板 blackboard 模式）：子 Agent 读写公共工作区，lead 只管调度——适合产出物天然可文件化的任务（报告、代码）；③**点对点通信**（A2A 式）：灵活但难调试、易出"两个 Agent 互相礼貌客套死循环"。生产主流是 ①+② 混合，并给所有 Agent 间消息设轮次上限与预算熔断——多 Agent 系统失控时烧钱速度是单 Agent 的数倍，**成本护栏（token budget、最大迭代数、超时中断）必须是一等公民设计**。
 
 参考：Anthropic, How we built our multi-agent research system — https://www.anthropic.com/engineering/multi-agent-research-system
+
+---
+
+<a id="q76"></a>
+
+### Q76. 一个 Java 对象在堆里到底占多少字节？讲讲对象头、字段重排和压缩指针，并用 JOL 实测（🏷JVM 📅2026-11-18 ⭐难度4）
+
+**「考察点」** 是否真正理解对象内存布局（Mark Word + Klass Pointer + 实例数据 + 对齐填充）、HotSpot 的字段重排策略，以及压缩指针（Compressed Oops）省了什么、32GB 堆边界是怎么来的。
+
+**「参考答案」**
+
+**基础答案**：HotSpot 对象内存布局分三块：
+
+| 部分 | 内容 | 大小（64位，压缩指针开） |
+|---|---|---|
+| 对象头 | Mark Word（哈希/锁状态/GC年龄） | 8 字节 |
+| 对象头 | Klass Pointer（指向类元数据） | 4 字节（压缩后） |
+| 实例数据 | 各字段值 | 视字段而定 |
+| 对齐填充 | 补齐到 8 的倍数（`ObjectAlignmentInBytes` 默认 8） | 0~7 字节 |
+
+所以一个空对象最小 16 字节（8 Mark + 4 Klass + 0 字段 + 4 填充）——`new Object()` 实测就是 16 字节。
+
+**深入原理**：
+
+1）**用 JOL（Java Object Layout，官方对象布局打印工具）实测**。声明 `class Mixed { long l; int i; byte b; Object ref; }`，注意我声明的顺序是 long→int→byte→ref，但打印出来的布局是：
+
+```
+OFF  SZ   TYPE DESCRIPTION            VALUE        （压缩指针开，默认 -Xmx<32G）
+  0   8        (object header: mark)  0x...1 (non-biasable; age: 0)
+  8   4        (object header: class) 0x01000a08
+ 12   4   int  Mixed.i                0
+ 16   8   long Mixed.l                0
+ 24   1   byte Mixed.b                0
+ 25   3        (alignment/padding gap)
+ 28   4   Object Mixed.ref            null
+Instance size: 32 bytes
+```
+
+怎么读：**字段没有按我声明的顺序排列**——int（4字节）被挪到 offset 12，正好填掉 Klass Pointer 后面的空洞，然后才是 8 字节对齐的 long，再放 byte。这就是 HotSpot 的**字段重排（field reordering）**：按"长字段对齐 + 用短字段填缝"策略排列，把 padding 压到最小。本例内部浪费只有 3 字节；如果按声明顺序排（long 需要 offset 8 对齐、byte 后 ref 需要 4/8 对齐），会浪费更多。**工程含义**：你无法靠调整字段声明顺序来省内存——JVM 自己会排；但你可以在 DTO 设计时意识到"小对象很多时每个至少 16 字节起步"，百万级小对象场景考虑原始类型数组 / 扁平化布局。
+
+2）**压缩指针（Compressed Oops）：为什么省的不只是引用本身**。64 位 JVM 里对象引用本应 8 字节；压缩后只存 4 字节的"窄引用"（narrow oop）。原理：对象都按 8 字节对齐 → 地址低 3 位恒为 0 → 只存"地址 ÷ 8"的 32 位值，用时左移 3 位还原。这样 32 位可以表示 2³² × 8 = **32GB** 地址空间——这就是著名的"堆不要超过 32GB"规则的来源（准确说约 31.x GB，实测 `-Xmx31g` 时 `UseCompressedOops=true (ergonomic)`，`-Xmx33g` 时自动变 `false (default)`）。压缩指针收益不止引用字段变 4 字节，还有：Klass Pointer 也从 8 变 4（对象头 16→12）、缓存行装得下更多引用、GC 扫描的内存量下降。实测对照（同一个 Mixed 对象）：
+
+| 配置 | Klass指针 | ref 字段 | Instance size |
+|---|---|---|---|
+| 压缩开（默认） | 4 字节 | 4 字节 | **32 字节** |
+| `-XX:-UseCompressedOops` | 4 字节 | 8 字节（padding 也从 3 变 7） | **40 字节** |
+
+只多一个引用字段就贵了 25%——引用密集型结构（Map/链表/树）在关压缩后膨胀更狠。所以**盲目把堆设到 40GB 可能反而降低有效容量**：对象变大 → 同内存装更少 → GC 更频繁。要么 <32GB，要么直接 >48GB 让"变大的部分"被绝对容量优势盖过（业界经验值，非精确阈值）。
+
+3）**`-XX:ObjectAlignmentInBytes=16` 的偏门用法**：把对齐从 8 改成 16，窄引用变成"地址 ÷ 16"，可表示空间翻倍到 64GB，压缩指针还能继续开——代价是 padding 浪费最多翻倍（每个对象期望多浪费 4 字节）。对象普遍较大时用它可以"堆>32G 但保留压缩指针"；小对象多的系统反而亏。实测该参数生效后空对象仍 16 字节（16 恰好也是 16 的倍数），Mixed 仍 32（运气好没额外 padding）。
+
+4）**Mark Word 里装了什么**（与 Q59 锁升级衔接）：64 位下它按锁状态复用同一块 8 字节——无锁存 identityHashCode + 分代年龄(4bit) + 锁标志(01)；轻量级锁存栈上 Lock Record 指针；重量级锁存 Monitor 指针；GC 标记位。**注意 JOL 输出里的 `non-biasable`**：偏向锁在 JDK 15 起默认禁用并废弃（JEP 374），因为撤销成本高、现代并发库收益小——面试还在背"无锁→偏向→轻量→重量"四段的话，要主动说明 JDK 15+ 已无偏向锁这一段。另一个推论：**一旦对对象调用过 `hashCode()`（identity hash，非重写版），Mark Word 被哈希占了，这个对象就再也无法偏向加锁**（偏向锁时代的行为，理解 Mark Word 复用逻辑的关键例子）。
+
+**「追问陷阱」**
+
+1. **"数组对象和普通对象布局有什么不同？"** —— 多一个 4 字节的**长度字段**（在 Klass Pointer 之后），JVM 靠它做边界检查，`array.length` 不需要访问对象内其他部分。实测 `new int[3]`：16 字节头（8 mark + 4 klass + 4 length）+ 12 字节数据 + 4 padding = 32 字节。推论：**一百万个长度 1 的 int[] 要 24MB**（每个 int[1] = 16+4+4padding = 24 字节），而一个 `int[1_000_000]` 只要 4MB——这就是"小对象数组化/扁平化"优化的算术依据，Netty、缓存框架都用这招。
+2. **"为什么 Java 17 的 JOL 打印对象头 mark 是 8 字节，有些文章说 JDK 未来要压到 4 字节？"** —— 指的是 Lilliput 项目（JEP 450，实验性）：把 Mark Word 与 Klass Pointer 合并压缩、对象头最小可到 8 字节（普通对象从 16→8/12），显著降低小对象开销并改善缓存密度，JDK 24 起作为 `-XX:+UseCompactObjectHeaders` 实验特性提供。回答时点明"这是进行中的项目、默认未启用"即可，体现你跟踪 JDK 演进而不是背老八股。
+
+---
+
+<a id="q77"></a>
+
+### Q77. 字符串常量池和 `intern()` 到底怎么工作？为什么 `"ja"+"va"` 拼接后 intern 的结果和 `"hello"` 不一样？（🏷JVM 📅2026-11-18 ⭐难度4）
+
+**「考察点」** 字符串常量池的位置变迁（永久代→堆）、`String.intern()` 的"存引用"语义、编译期常量折叠规则，以及字面量何时进池（类链接期 vs 首次 intern）。
+
+**「参考答案」**
+
+**基础答案**：JDK 7 起字符串常量池（StringTable）从永久代移到**堆**中（永久代空间小且固定，字符串泄漏曾是 PermGen OOM 头号原因；移堆后可被 GC 正常回收）。`intern()` 的语义是：**去 StringTable 里查这个字符串内容——有，返回表里那个引用；没有，把"当前对象的引用"放进表，再返回**。关键在"没有"的分支：JDK 7+ 是**存堆对象的引用（不再复制一份）**，这导致经典面试题：
+
+```java
+String s1 = new StringBuilder("ja").append("va").toString();
+System.out.println(s1.intern() == s1);   // false！
+String s2 = new StringBuilder("计算机").append("软件").toString();
+System.out.println(s2.intern() == s2);   // true
+```
+
+标准答案是 false / true，**但原因不是玄学**："java" 在 JVM 启动时（sun.misc.Version 等系统类初始化）就已经在池里了，s1.intern() 查到的是早就存在的那个引用，当然 ≠ s1；而 "计算机软件" 池里没有，intern 把 s2 自己的引用存进去再返回，所以 ==。本机 JDK 17 实测完全复现：false / true。
+
+**深入原理**：
+
+1）**"字面量什么时候进池"比 intern 更早、更隐蔽**。类加载的**链接（resolve）阶段**会把 class 文件常量池里的字符串字面量解析进 StringTable——不需要执行到那行代码。实测这个陷阱：
+
+```java
+public class InternOrder {
+    static String touch;
+    public static void main(String[] args) {
+        if (args.length > 0) { touch = "world"; }  // 只有传参才执行
+        String s = new StringBuilder("wor").append("ld").toString();
+        System.out.println((s.intern() == s));
+    }
+}
+```
+
+不传参运行（那行 `"world"` 字面量代码**从未执行**）：输出 `true`——池里没有 "world"，intern 存的是 s。传参运行（执行过一次 `touch = "world"`）：输出 `false`——字面量在赋值那一刻已进池。**这就是为什么《深入理解 JVM》原书实验里 `s.intern()==s` 是 false**：原书把 `"java"` 之类换成了含字面量的实验类，实验代码自己污染了 StringTable。能指出"实验结果依赖执行顺序和类加载"的候选人，说明真跑过而不是背过。
+
+2）**编译期常量折叠**：`String s = "ja" + "va";` 会在 **javac 阶段**直接折叠成 `"java"`（两个字面量的拼接是编译期常量表达式），根本不产生 StringBuilder；`s == "java"` 为 true。但只要有一侧是变量（`String a = "ja"; String s = a + "va";`），就变成运行期 `new StringBuilder().append().append().toString()`，产生**堆上的新对象**，== 比较为 false。这就是"字面量拼接零成本、变量拼接有对象分配"的字节码依据（`javap -c` 可验证：前者是 ldc 一条指令，后者是 invokedynamic makeConcatWithConstants——JDK 9+ 字符串拼接改用 invokedynamic 引导，见 JEP 280）。
+
+3）**StringTable 的实现与容量**：StringTable 是 C++ 层的**固定大小哈希表**（不是 Java HashMap），桶数由 `-XX:StringTableSize` 控制，默认 65536。大量动态 intern（比如按用户 ID 拼 key 后 intern）时桶冲突会让 intern 变慢，且**池里字符串只有 Full GC / 并发标记阶段才清理**——被 StringTable 引用的字符串在老年代长期存活。所以生产代码 intern 的原则：**只 intern 基数有限且复用的字符串**（如枚举值、列名），别 intern 无界数据，否则等于自建内存泄漏。
+
+4）**intern 的正确打开方式**：重复字符串多的场景（CSV 列名、JSON key、日志模板）可以省堆——两个内容相同的字符串共享一个对象。但注意 **intern 有锁竞争**（StringTable 是全局哈希表，桶级锁在高并发 intern 下是热点，JDK 12+ 才改进），高并发路径慎用；无界数据的 intern 一律禁止（见原理3）。
+
+```mermaid
+graph LR
+    A["字面量 'hello'<br/>class 文件常量池"] -->|类加载·链接期| B[(StringTable<br/>堆中·C++哈希表)]
+    C["new StringBuilder(...)<br/>.toString()"] -->|堆上新对象 s| D{s.intern() 查表}
+    D -->|"表里已有（如启动期的'java'）"| E[返回表里的旧引用<br/>== s 为 false]
+    D -->|表里没有| F[把 s 的引用存入表<br/>返回 s<br/>== s 为 true]
+    B -.-> D
+```
+
+怎么读这张图：进入 StringTable 有两条路——左路是字面量随类链接进池（早于任何 intern 调用），右路是运行期 intern 手动登记。`==` 的结果完全由"**谁先进池**"决定，和字符串内容无关。
+
+**「追问陷阱」**
+
+1. **"`new String("abc")` 创建了几个对象？"** —— 背"两个"就掉坑了。正确答案：**"abc" 字面量进池发生在类加载链接期，与这行代码无关**；执行 `new String("abc")` 时只在堆上创建 1 个新 String 对象（包壳，内部 char[]/byte[] 与池中 "abc" **共享**同一个数组，JDK 9+ 是 byte[] + coder 的紧凑字符串）。"创建两个"的说法是把"字面量首次进池"错误归到这行执行时——如果该类之前已有代码碰过 "abc"（见原理1的实测），这行就只创建 1 个。面试官想听的是你能把"类加载期"和"执行期"分开。
+2. **"StringTable 里的字符串会被回收吗？"** —— 会。JDK 7 移入堆后，StringTable 条目本质是弱关联：GC 会清理"池中引用但堆上无人再引用"的条目（G1 下并发标记阶段处理 StringTable，`-Xlog:gc+stringtable` 可观察）。这与永久代时代"进了池几乎等于永生"完全不同——所以老文章说"intern 滥用导致 PermGen 泄漏"，在新 JDK 上表现为老年代字符串堆积 + Full GC 时 StringTable 清理开销，形态变了但"别 intern 无界数据"的结论没变。
+
+---
+
+<a id="q78"></a>
+
+### Q78. 线程栈里到底存了什么？`-Xss` 设多大合适，为什么递归深度实测和"帧大小"对不上？（🏷JVM 📅2026-11-18 ⭐难度3）
+
+**「考察点」** 虚拟机栈的帧结构（局部变量表/操作数栈/动态链接）、`-Xss` 与最大递归深度的关系、StackOverflowError 和线程数上限之间的权衡，以及"每线程 1MB"在容器时代的真实成本。
+
+**「参考答案」**
+
+**基础答案**：虚拟机栈（每个线程私有）以**栈帧（Stack Frame）**为单位，每调一个方法压一帧。一帧包含：**局部变量表**（方法参数+局部变量，以 slot 为单位，long/double 占 2 slot）、**操作数栈**（字节码运算的工作台，`iadd` 从这里弹操作数）、**动态链接**（指向运行时常量池中该方法的引用）、返回地址。`-Xss` 设定每个线程栈大小（Linux x64 默认 1MB），栈耗尽抛 `StackOverflowError`；申请不到新线程的栈内存则报 `OutOfMemoryError: unable to create new native thread`——**前者是深度问题，后者是广度问题**，同一个 `-Xss` 旋钮控制两头：调小 → 递归更浅但能开更多线程。
+
+**深入原理**：
+
+1）**实测：递归深度 ≈ 栈大小 ÷ 帧大小，但"帧大小"比你想的小**。本机 JDK 17 用无限递归数深度：
+
+| 配置 | 简单帧（无参递归） | 胖帧（3 个 long 参数） |
+|---|---|---|
+| `-Xss128k` | JVM 拒绝启动（下限 136k） | — |
+| `-Xss256k` | 2633~3400 | ~1400 |
+| `-Xss512k` | ~10000 | — |
+| `-Xss1m`（默认） | 18999~24403 | ~12000 |
+
+怎么读：三条规律。① **深度与 Xss 大致成正比**（256k→1m 四倍，深度约 3000→23000 上下，中间有 ±20% 的次间抖动——同一段代码多次运行深度并不完全相同，因为溢出点取决于 JIT 是否已把递归方法编译成更紧凑的帧）；② **同一 `-Xss` 下胖帧深度约为简单帧的一半**：参数从 0 个变 3 个 long（24 字节）确实吃掉近一倍空间；③ 简单帧隐含每帧才 ~45 字节（1MB/23000）：JIT 编译后的空递归帧极小。这解释了"为什么生产代码递归深度和实验室测的对不上"——**帧大小取决于该方法的局部变量表+操作数栈实际用量**（看 `javap -v` 的 `stack=` 和 `locals=`），且同代码受编译状态影响有 ±20% 抖动，不是固定值。
+
+2）**HotSpot 特有细节：栈上不止有帧**。还有：每个栈顶部的**黄区/红区（yellow/red zone）**保护页（越界先触发 SIGSEGV 由 JVM 转成 StackOverflowError，而不是踩坏别的内存）、锁膨胀用的 Lock Record 区、以及解释器的额外簿记。所以"可用深度 < Xss/帧大小"的理论值。另外 `Thread` 创建时栈内存是 **native 内存（malloc/mmap），不在 `-Xmx` 里**——这就是 1000 线程 × 1MB = 1GB 额外 RSS 的来源，容器里 `-Xmx` 打满 limit 后线程栈成了 OOMKilled 的隐形推手（与 Q34 的内存核算呼应）。
+
+3）**`-Xss` 的工程取值**：默认 1MB 对绝大多数服务偏大。Web 容器/微服务动辄数百线程，把 `-Xss` 调到 256k~512k 可省下数百 MB native 内存，代价是递归深度减半——而正常业务代码递归深度超过几千层的场景基本不存在（存在就该改迭代/显式栈）。需要警惕的反例：**深递归的框架**（Jackson 解析深层嵌套 JSON、正则引擎回溯、ANTLR 解析深层表达式）在 256k 下可能溢出，所以"调小 Xss"要配合压测最深路径。还有一个冷知识：`-Xss` 设 128k 时本机 JVM 直接拒绝启动并报 *"The Java thread stack size specified is too small. Specify at least 136k"*——**存在平台相关的最小值**（要容纳 VM 自身的最深 native 调用链），不是想设多小就多小。
+
+4）**StackOverflowError 的工程处理**：它是 Error 不是 Exception，**可以被 catch**（实测递归代码 catch 住后程序继续跑），但 catch 后栈已回到安全深度，一般只用于框架兜底（如 JSON 解析器 catch 后转成"嵌套过深"的业务错误）。多线程下 SOE 只杀死当前线程。防御手段：递归入口带 depth 参数并设上限（比依赖 Xss 溢出便宜得多）；或改写成显式 `Deque` 迭代——DFS/BFS 模板题里"递归 vs 迭代"的选择依据正是这条。
+
+**「追问陷阱」**
+
+1. **"局部变量表存的是对象本身吗？"** —— 不是，**栈上永远只存引用（或原始值），对象本体在堆上**。这也是"逃逸分析能做栈上分配/标量替换"（Q16）被称为优化的原因——它是把"本应放堆"的对象拆成局部变量放进了局部变量表 slot，属于特例而非默认。追问到这里想验证你有没有把"栈帧存局部变量"错误理解成"栈存对象"。
+2. **"主线程的栈也是 1MB 吗？"** —— 不是。主线程栈大小跟随 native 线程默认（受 `ulimit -s` 影响，Linux 常为 8MB），`-Xss` 只对 `new Thread` 创建的线程生效（严格说 HotSpot 里 `-Xss` 是 ThreadStackSize 默认值，主线程由 launcher 创建、用的是 OS 默认）。这解释了常见怪象：**同一段深递归代码在 main 里跑得过，丢进线程池就 StackOverflowError**——排查时记得看是哪个线程抛的。
 
 ---
