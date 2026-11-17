@@ -112,6 +112,7 @@ HermesReports/
 ## 📖 最新内容
 
 ### 前沿日报
+- [2026-11-18 前沿日报](reports/2026-11-18-frontier-daily.md)
 - [2026-11-17 前沿日报](reports/2026-11-17-frontier-daily.md)
 - [2026-11-16 前沿日报](reports/2026-11-16-frontier-daily.md)
 - [2026-11-15 前沿日报](reports/2026-11-15-frontier-daily.md)
