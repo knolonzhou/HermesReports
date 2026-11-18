@@ -2,7 +2,7 @@
  "name": "全球配置组合",
  "start_date": "2026-11-01",
  "initial_capital": 20000.0,
- "cash": 14502.16556351757,
+ "cash": 16237.06422982095,
  "holdings": [
   {
    "code": "513030",
@@ -28,7 +28,7 @@
   {
    "code": "518880",
    "name": "黄金ETF华安",
-   "shares": 450,
+   "shares": 225,
    "avg_cost": 8.270111111111111,
    "bought_at": "2026-11-01"
   },
@@ -117,6 +117,13 @@
    "cash": 14502.17,
    "market_value": 5311.3,
    "return_pct": -0.933
+  },
+  {
+   "date": "2026-11-18",
+   "equity": 19706.93,
+   "cash": 16237.06,
+   "market_value": 3469.87,
+   "return_pct": -1.465
   }
  ],
  "trades": [
@@ -257,7 +264,17 @@
    "shares": 200,
    "price": 8.285,
    "amount": 1657.0
+  },
+  {
+   "date": "2026-11-18",
+   "action": "SELL",
+   "code": "518880",
+   "name": "黄金ETF华安",
+   "shares": 225,
+   "price": 7.709,
+   "amount": 1734.52,
+   "realized_pnl": -126.25
   }
  ],
- "updated_at": "2026-11-17T15:05:59"
+ "updated_at": "2026-11-18T15:05:36"
 }
