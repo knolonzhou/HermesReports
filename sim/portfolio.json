@@ -120,10 +120,10 @@
   },
   {
    "date": "2026-11-18",
-   "equity": 19707.18,
+   "equity": 19706.93,
    "cash": 16237.06,
-   "market_value": 3470.11,
-   "return_pct": -1.464
+   "market_value": 3469.87,
+   "return_pct": -1.465
   }
  ],
  "trades": [
@@ -276,5 +276,5 @@
    "realized_pnl": -126.25
   }
  ],
- "updated_at": "2026-11-18T14:32:09"
+ "updated_at": "2026-11-18T15:05:36"
 }
