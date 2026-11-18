@@ -41,6 +41,9 @@
 - [Q58. volatile 保证了可见性，为什么还不保证原子性？顺便把 JMM、happens-before 和 DCL 单例讲透](#q58)（📅2026-11-12 ⭐4）
 - [Q59. synchronized 的锁升级是怎么发生的？用 JOL 实测 Mark Word 从无锁→轻量级→重量级的变化](#q59)（📅2026-11-12 ⭐4）
 - [Q60. CAS 有什么坑？ABA、高竞争自旋空转、只能保一个变量——LongAdder 凭什么比 AtomicLong 快？](#q60)（📅2026-11-12 ⭐4）
+- [Q79. ThreadLocal 凭什么线程隔离？key 是弱引用为什么还会内存泄漏？线程池 + ThreadLocal 的串数据事故](#q79)（📅2026-11-19 ⭐4）
+- [Q80. ConcurrentHashMap 如何做到高并发？1.8 为什么抛弃分段锁改成 CAS + synchronized 锁桶头？](#q80)（📅2026-11-19 ⭐5）
+- [Q81. CompletableFuture 异步编排：thenApply/thenCompose/allOf 怎么选？回调到底在哪个线程执行？](#q81)（📅2026-11-19 ⭐4）
 
 ### 算法·LeetCode 高频题
 - [Q4. 无重复字符的最长子串（LC3）](#q4)（📅2026-10-24 ⭐3）
@@ -4901,5 +4904,224 @@ graph LR
 
 1. **"局部变量表存的是对象本身吗？"** —— 不是，**栈上永远只存引用（或原始值），对象本体在堆上**。这也是"逃逸分析能做栈上分配/标量替换"（Q16）被称为优化的原因——它是把"本应放堆"的对象拆成局部变量放进了局部变量表 slot，属于特例而非默认。追问到这里想验证你有没有把"栈帧存局部变量"错误理解成"栈存对象"。
 2. **"主线程的栈也是 1MB 吗？"** —— 不是。主线程栈大小跟随 native 线程默认（受 `ulimit -s` 影响，Linux 常为 8MB），`-Xss` 只对 `new Thread` 创建的线程生效（严格说 HotSpot 里 `-Xss` 是 ThreadStackSize 默认值，主线程由 launcher 创建、用的是 OS 默认）。这解释了常见怪象：**同一段深递归代码在 main 里跑得过，丢进线程池就 StackOverflowError**——排查时记得看是哪个线程抛的。
+
+---
+
+<a id="q79"></a>
+
+### Q79. ThreadLocal 凭什么线程隔离？key 是弱引用为什么还会内存泄漏？线程池 + ThreadLocal 的串数据事故（🏷并发 📅2026-11-19 ⭐难度4）
+
+**「考察点」** ThreadLocalMap 的存储结构（数据挂在线程上而不是 ThreadLocal 上）、弱引用 key 的设计动机与"半泄漏"问题、以及线程池复用场景下不 remove() 导致的数据串号——后者是真实生产事故的头号来源。
+
+**「参考答案」**
+
+**基础答案**：ThreadLocal 提供线程局部变量：每个线程都持有自己独立的一份副本，互不可见。实现上**数据并不存在 ThreadLocal 对象里，而是存在每个 Thread 自己身上**——`Thread` 类有个字段 `ThreadLocalMap threadLocals`，ThreadLocal 对象本身只当 **key**。`tl.set(v)` 的实际动作是 `Thread.currentThread().threadLocals.set(tl, v)`。隔离性是"天然"的：你访问的 map 就挂在你自己的线程对象上，别的线程摸不到。get 时若 map 里没有，调 `initialValue()`（或 `withInitial(supplier)` 传的 lambda）初始化。
+
+**深入原理**：
+
+1）**ThreadLocalMap 不是 HashMap：开放寻址 + Entry 继承 WeakReference**。它内部是 `Entry[] table`，`Entry extends WeakReference<ThreadLocal<?>>`——**key（ThreadLocal 引用）是弱引用，value 是强引用**。哈希冲突不用链表法（HashMap 那样），而是**开放寻址线性探测**：`i = (hash & len-1)`，被占就往后找第一个空位。为什么这么设计？因为一个线程通常只挂几个 ThreadLocal，map 很小，线性探测缓存友好、没有链表节点对象开销；而弱引用 key 是为了兜底——**当外部对 ThreadLocal 的强引用消失后，GC 能把 key 清掉**，之后任何一次对该 map 的 get/set/remove 都会顺手做 `expungeStaleEntry`（清理 key==null 的僵尸 entry，即"启发式清理"），把 value 也释放掉。
+
+2）**那为什么还泄漏？弱引用只救了 key，救不了 value**。泄漏条件是"三不死"：① ThreadLocal 外部强引用没了（key 被 GC 清空）；② value 还被 entry 强引用着；③ **线程还活着、且之后再也不碰这个 map**——启发式清理没有触发时机。key 死了 value 还占着内存，这就是所谓"key=null 的僵尸 entry"。本机 JDK 17 实测：set 一个 10MB byte[] 后把 ThreadLocal 引用置 null 并强制 GC，反射查看 ThreadLocalMap：
+
+```text
+GC后: 弱引用key已清空的entry数=1, 存活key的entry数=0, 泄漏value字节=10MB
+```
+
+key 确实被回收了（弱引用生效），但 **10MB 的 value 原封不动挂在 entry 上**。在"线程活几天"的线程池里，这类僵尸 entry 只增不减 → 慢性内存泄漏。**结论：弱引用是"减轻"不是"根治"，根治只有一条路——用完 `remove()`**（finally 里）。
+
+3）**比泄漏更凶的：线程池串数据**。线程池的线程是复用的，ThreadLocalMap 跟着线程走。请求 A 在线程 T 上 `set(userA)` 后忘了 remove；请求 B 恰好也调度到 T，`get()` 读到的就是 **A 的用户身份**——轻则数据错乱，重则**越权**（拿着别人的登录态）。实测（单线程池，请求 A set 后不 remove，请求 B 直接 get）：
+
+```java
+ExecutorService pool = Executors.newFixedThreadPool(1);
+pool.submit(() -> CTX.set("user-A"));          // 请求A：设置上下文，"忘了"remove
+System.out.println(pool.submit(() -> CTX.get()).get()); // 请求B：什么都没设置
+// 输出：user-A   <-- 串数据！（期望 null）
+// 补一次 remove 后再 get → null，恢复正常
+```
+
+规范写法只有一个：
+
+```java
+try {
+    ctxThreadLocal.set(value);   // 拦截器 preHandle / 任务开头
+    doBusiness();
+} finally {
+    ctxThreadLocal.remove();     // 拦截器 afterCompletion / 任务结尾，必须 finally
+}
+```
+
+Web 框架里对应 Filter/Interceptor 的 `afterCompletion`（Tomcat 每请求一线程，也是复用模型）；`@Async`/线程池提交的任务同理。
+
+4）**InheritableThreadLocal 与跨线程传递**。普通 ThreadLocal 子线程拿不到父线程的值。`InheritableThreadLocal` 在 **new Thread() 时**把父线程 map **拷贝**一份给子线程（`Thread.init` 里的 `inheritableThreadLocals`）。注意坑：拷贝发生在**线程创建那一刻**——线程池的线程早就创建好了，后续任务再改父线程的值，池内线程看不到。阿里 **TransmittableThreadLocal（TTL）** 解决的就是这个：它在**任务提交时**捕获快照、任务执行时重放到工作线程、执行完恢复，配合 `TtlExecutors.getTtlExecutorService()` 包装线程池使用。全链路 traceId 透传基本靠它（或靠框架在提交点手动搬运）。
+
+5）**结构图**：
+
+```mermaid
+graph LR
+    subgraph Thread-1
+        T1[Thread.threadLocals] --> M1["ThreadLocalMap<br/>Entry[] table"]
+        M1 --> E1["Entry: key=弱引用→TL_A, value=强引用→userA"]
+    end
+    subgraph Thread-2
+        T2[Thread.threadLocals] --> M2["ThreadLocalMap"]
+        M2 --> E2["Entry: key=弱引用→TL_A, value=强引用→userB"]
+    end
+    TL[ThreadLocal 对象 TL_A<br/>（只是 key，不存值）] -.弱引用.- E1
+    TL -.弱引用.- E2
+```
+
+读图要点：同一个 ThreadLocal 对象作为 key 出现在**每个线程各自的 map** 里；value 彼此独立——隔离来自"map 挂在线程上"，而非任何加锁。
+
+**「追问陷阱」**
+
+1. **"key 为什么设计成弱引用？强引用不是更不容易丢 value 吗？"** —— 反过来想：如果 key 是强引用，ThreadLocal 对象只要还被某个线程 map 的 entry 指着就**永远不会被 GC**（哪怕用户代码早就不用它了），泄漏的是 key+value 全部。弱引用至少保证 key 可回收、且给"key==null 即僵尸"留下了可识别的标记，让启发式清理有目标。设计者权衡的是"**泄漏窗口**"：强引用=无限期泄漏，弱引用=泄漏到下一次碰 map 为止。真正的完全体是用户自觉 remove()——JDK 文档里明写了。
+2. **"线程池场景，除了 remove 还有什么兜底？"** —— ① 装饰线程池：任务包装成 `try { run() } finally { 清理所有 ThreadLocal }`（Tomcat 的 `ThreadLocalLeakPreventionListener` 会在检测到泄漏时**废弃并重建线程**）；② 用 TTL 这类接管生命周期的封装；③ 静态检查/CodeReview 规则强制"set 必须配对 remove"。加分点：说出 Tomcat 重建线程这个兜底，说明真踩过。
+
+---
+
+<a id="q80"></a>
+
+### Q80. ConcurrentHashMap 如何做到高并发？1.8 为什么抛弃分段锁改成 CAS + synchronized 锁桶头？（🏷并发 📅2026-11-19 ⭐难度5）
+
+**「考察点」** CHM 从 1.7 Segment 分段锁到 1.8 "CAS + synchronized 锁单个桶头节点"的演进动机、size 计数的 LongAdder 式分片、get 为什么完全无锁，以及和 `Collections.synchronizedMap` / `Hashtable` 的本质区别。
+
+**「参考答案」**
+
+**基础答案**：三者对比——`Hashtable`：整表一把锁，任何读写全串行；`Collections.synchronizedMap`：本质也是包装器给所有方法套同一个 mutex，读读也互斥；`ConcurrentHashMap`：**读完全无锁，写只锁冲突的那个桶**。粒度从"整个 Map"降到"单个桶（链表头/红黑树根）"，理论并发度 = 桶数。JDK 8 之前用 **Segment 分段锁**（默认 16 段，每段一个小 HashMap + 一把 ReentrantLock，并发度固定 16）；**JDK 8 改为 Node 数组 + CAS + synchronized**：数组空位用 CAS 无锁写入，非空位用 `synchronized` 锁住**桶头节点**再挂链表/树。
+
+**深入原理**：
+
+1）**为什么 1.8 抛弃 Segment？** ① **并发度**：Segment 把并发度焊死在段数（默认 16），扩容后段数不可变（rehash 迁移整段代价大）；锁桶头则并发度随容量增长——100 万桶就能有 100 万个"锁"。② **锁的代价变了**：JDK 6 之后 synchronized 有偏向锁→轻量级锁→重量级锁的升级链路（见 Q59），无竞争时几乎零成本，且 JVM 团队持续优化它，而 ReentrantLock 是纯 Java 实现吃不到这些优化红利；③ **结构简化**：Segment 是"套娃 HashMap"（两段寻址 hash→段→桶），1.8 直接一段寻址，还顺手复用了 HashMap 的**链表≥8 且容量≥64 转红黑树**，把恶意哈希碰撞的退化从 O(n) 拉到 O(log n)。
+
+2）**put 的完整路径（1.8）**：
+   - 桶为空 → **CAS** 写入新 Node，成功即返回（全程无锁）；
+   - 桶非空 → `synchronized (桶头节点)`，锁内遍历链表/树插入或更新；
+   - 正在扩容（桶头是 ForwardingNode）→ 当前线程**帮忙搬运一段桶**（help transfer，多线程并行扩容）；
+   - 插入后链表长度 ≥8 → `treeifyBin`（容量 <64 则只扩容不树化）。
+   
+   **get 完全无锁**：`Node.val` 和 `next` 都是 `volatile`，靠 JMM 可见性直接读最新值——这就是读吞吐的来源。实测（本机 2 核，JDK 17）：预填 10 万条后 **500 万次 get：CHM=88ms，synchronizedMap=167ms**，差约 2 倍（核少差距还小，核多会拉大到数量级）。
+
+3）**size() 怎么算：LongAdder 同款思想（见 Q60）**。并发写时如果都用 CAS 改一个 `baseCount`，高竞争下失败重试会烧 CPU。CHM 的 `addCount`：无竞争先 CAS `baseCount`；失败则退化到 **`CounterCell[]` 分片**（每线程按探针哈希摊到不同 cell 上各自 CAS），`size()` = baseCount + Σ cells（因此只是**估算值**，并发修改中无精确语义）。本机实测：空表时 `counterCells=null`（还没竞争）；16 线程 × 10 万 put 后 `counterCells` 长度 2、`size()` 精确等于 1600000。
+
+4）**丢数据对照实验**——HashMap 并发 put 到底丢多少（8 线程 × 5 万互不重叠 key，期望 40 万，JDK 17 多轮实测）：
+
+```text
+HashMap.size = 390930 / 400000 / 368369 / 200841 ...（丢了 1698 ~ 199159 不等）
+ConcurrentHashMap.size = 400000（每轮都精确）
+synchronizedMap.size  = 400000（每轮都精确）
+```
+
+丢数据的原因：两个线程同时判定同一桶为空、同时 CAS/直接覆盖写，后者覆盖前者的链表头；扩容迁移时也会互相踩（1.7 的 HashMap 头插法甚至会成环导致 CPU 100%，1.8 改尾插不成环但依然丢数据）。注意 HashMap 丢多少**完全看调度运气**——上面几轮从"没丢"到"丢一半"都有，这正是并发 bug"测不出来"的典型。
+
+5）**扩容为什么能多线程并行**：1.8 扩容时把 table 按 **stride（步长，最小 16 桶）** 切段，每个来帮忙的线程认领一段搬运（`transferIndex` 全局游标 CAS 分配），搬完的桶放 **ForwardingNode**（hash=MOVED，指向新表）；此间读请求遇到 ForwardingNode 会**转发到新表**去读——扩容不停读、写线程来了先帮忙，这是"help transfer"能成立的前提。
+
+6）**演进对比图**：
+
+```mermaid
+graph TB
+    subgraph "JDK 7: 分段锁"
+        A1[put] --> A2["hash 定位 Segment(共16个)"]
+        A2 --> A3["ReentrantLock 锁整段"]
+        A3 --> A4[段内小 HashMap 写入]
+    end
+    subgraph "JDK 8+: CAS + synchronized"
+        B1[put] --> B2{桶为空?}
+        B2 -->|是| B3[CAS 无锁写入]
+        B2 -->|否| B4[synchronized 锁桶头节点]
+        B4 --> B5[链表/红黑树插入]
+        B2 -->|扩容中| B6[help transfer 并行搬运]
+    end
+```
+
+**「追问陷阱」**
+
+1. **"CHM 的 key/value 为什么不允许 null？HashMap 就可以？"** —— 二义性问题：`get(k)` 返回 null 时无法区分"不存在"还是"值就是 null"。HashMap 单线程下可以再用 `containsKey` 二次确认，**并发下两次调用之间 map 可能已变**，二义性无解，所以 Doug Lea 直接禁掉（构造时就抛 NPE）。追问这个是想验证你是背结论还是懂"并发下 null 语义不可判定"这层原因。
+2. **"synchronized 锁桶头，锁住的是什么对象？会不会跟用户代码的锁撞车？"** —— 锁的是 CHM 内部的 `Node` 对象（桶头节点），外部代码拿不到这个引用，不可能误撞；但反过来有一个真实的坑：**在 CHM 的锁内执行用户代码**——`compute/computeIfAbsent/merge` 的 remapping 函数是在桶锁内跑的，函数里若再去改**同一个 map 的其他 key**（可能同桶）会死锁或抛 `IllegalStateException`（JDK 9+ 检测到重入修改会抛），文档明确要求 remapping 函数"简短、且不更新本 map"。
+3. **"1.7 的头插法成环、1.8 改尾插就安全了吗？"** —— 1.8 只是不成环，**HashMap 并发依然丢数据、依然可能树化错乱**（上面实测丢了最多一半）。结论永远是：并发就用 CHM，别赌 HashMap 的调度运气。
+
+---
+
+<a id="q81"></a>
+
+### Q81. CompletableFuture 异步编排：thenApply/thenCompose/allOf 怎么选？回调到底在哪个线程执行？（🏷并发 📅2026-11-19 ⭐难度4）
+
+**「考察点」** 对 CompletableFuture 三类操作（转换/组合/消费）的语义区分、"回调执行线程"这个最容易踩的坑、异常传播链，以及聚合调用（并行 RPC）的标准写法。
+
+**「参考答案」**
+
+**基础答案**：`CompletableFuture<T>`（JDK 8）= `Future`（只能傻等/轮询）+ 回调式编排能力。核心 API 分三类：
+- **转换**：`thenApply`（有返回值，类比 Stream.map）、`thenAccept`（消费无返回）、`thenRun`（不关心上游结果）；
+- **扁平化组合**：`thenCompose`（回调本身又返回 CompletableFuture，类比 flatMap，避免 `CF<CF<T>>` 套娃）；
+- **多任务聚合**：`allOf`（全部完成，返回 `CF<Void>`）、`anyOf`（任一完成）、`thenCombine`（两个都完成后合并结果）。
+
+选型口诀：**回调返回普通值用 thenApply；回调返回另一个 CF（链式异步调用）必须用 thenCompose**——用 thenApply 会得到 `CompletableFuture<CompletableFuture<T>>`，得 join 两次。本机实测验证：
+
+```text
+thenApply 嵌套类型 = CompletableFuture  （套娃了）
+thenCompose 扁平类型 = String           （正确）
+```
+
+**深入原理**：
+
+1）**回调在哪个线程执行？三条规则（实测输出为证）**：
+   - `thenApply`（无 Async 后缀）：如果注册回调时上游**还没完成**，回调由**完成上游的那个线程**顺手执行；如果上游**已完成**，回调在**调用 thenApply 的当前线程**同步执行。实测：`CompletableFuture.completedFuture("x").thenApply(...)` 打印 `x@main`——上游已完成，回调就在 main 上跑。
+   - `thenApplyAsync`：**强制提交到线程池**执行（默认 ForkJoinPool.commonPool，可传自定义 Executor）。实测同一链条：`thenApply → @main，thenApplyAsync → @Thread-9`。
+   - 工程含义：`completedFuture` + `thenApply` 实际是同步链，别指望它异步；反过来，在 Web 容器里用 `thenApply` 让 IO 线程顺手跑你的 CPU 回调，可能拖慢公共池——**有阻塞/耗时逻辑一律显式传自己的线程池**（`thenApplyAsync(fn, myExecutor)`）。
+   - 附带实测：默认 commonPool 并行度 = CPU 核数 − 1（本机 2 核容器 → 并行度 1）。全服务共享这一个池，任何人在里面跑阻塞任务都会饿死其他人——这是"别用默认池跑 IO"的硬理由。
+
+2）**异常传播链**。任一环节抛异常，后续 `thenApply/thenCompose` **全部跳过**，异常沿链下传，直到遇到 `exceptionally/handle/whenComplete`。取结果时（join/get）被包成 **`CompletionException`**（get 包 `ExecutionException`），原始异常在 `getCause()`。实测：
+
+```text
+supplyAsync(throw IllegalStateException)
+  .thenApply(...)        ← 被跳过
+  .exceptionally(ex -> ...)
+输出: 兜底: CompletionException cause=java.lang.IllegalStateException: boom
+```
+
+工程要点：`exceptionally` 里要拆 `ex.getCause()` 才能拿到业务异常类型；`handle` 与 `exceptionally` 的区别是 handle 成功失败都会进（拿 `(result, ex)` 二元组），适合统一记录+转换。
+
+3）**聚合调用的标准姿势（并行 RPC）**。`allOf` 返回 `CF<Void>`，结果要自己收集；`join` 在全部完成后是立即返回的（已完成），所以循环里 join 不会串行等待。实测 5 个 50~150ms 的任务并行：
+
+```text
+allOf 总耗时 = 134ms（≈最慢的那个任务；串行应 ≥250ms）, results=[0,1,2,3,4]
+```
+
+模板（详情页并行聚合三个下游）：
+
+```java
+ExecutorService rpcPool = ...; // 自己的池，别用 commonPool
+CompletableFuture<User>  u = supplyAsync(() -> userRpc.get(id),   rpcPool);
+CompletableFuture<Order> o = supplyAsync(() -> orderRpc.list(id), rpcPool);
+CompletableFuture<Coupon> c = supplyAsync(() -> couponRpc.get(id), rpcPool);
+
+CompletableFuture<Page> page = CompletableFuture.allOf(u, o, c)
+    .thenApply(v -> new Page(u.join(), o.join(), c.join()))  // 此处全已完成，join 立即返回
+    .orTimeout(800, TimeUnit.MILLISECONDS)                    // JDK 9+ 超时
+    .exceptionally(ex -> {
+        Throwable cause = ex instanceof CompletionException ? ex.getCause() : ex;
+        if (cause instanceof TimeoutException) return Page.degraded(); // 降级页
+        throw new CompletionException(cause);
+    });
+```
+
+超时实测：`orTimeout(100ms)` 作用于一个 500ms 的慢任务 → 兜底捕获到 `TimeoutException`（注意 orTimeout 只是让 CF 以超时异常完成，**底层任务并不会被取消**，还在池里跑——这是高频追问点）。
+
+4）**JDK 9+ 增强**：`orTimeout` / `completeOnTimeout(default, timeout)`（超时给默认值而非异常）、`completedStage`、`delayedExecutor`。JDK 12+ 有 `exceptionallyCompose`。虚拟线程时代（见 Q39）的另一种解法：直接开虚拟线程写同步代码，CompletableFuture 链主要在**既有异步框架**和**需要非阻塞组合语义**时保留。
+
+5）**结构图**：
+
+```mermaid
+graph LR
+    A["supplyAsync(rpcPool)"] --> B["thenApply 转换<br/>(谁完成谁执行/已完成则当前线程)"]
+    B --> C["thenCompose 链下一个异步调用<br/>(flatMap, 防套娃)"]
+    C --> D["allOf 聚合多路"]
+    D --> E["orTimeout 800ms"]
+    E --> F["exceptionally 拆 cause → 降级/重抛"]
+```
+
+**「追问陷阱」**
+
+1. **"thenApply 和 thenApplyAsync 到底什么时候必须用 Async 版？"** —— 两个场景：① 上游可能已完成（如 `completedFuture`、缓存命中路径），不带 Async 的回调会**同步阻塞调用线程**——在 Netty/Tomcat 线程里这可能违反"不阻塞 IO 线程"的铁律；② 回调里有阻塞/耗时操作，必须甩到自己的池里。反例：纯内存的轻量转换用 Async 反而多一次线程切换开销。**答出"注册时上游是否已完成"这个分界是加分点。**
+2. **"allOf 里一个任务失败，其他任务会怎样？"** —— `allOf` 立即以该异常完成，但**其他任务不会被取消**，继续跑到自然结束（结果无人消费）。要"快速失败并取消"得自己在 exceptionally 里遍历调 `cancel(true)`（而且 cancel 对已提交任务也只是尽力而为）。另一个高频追问："为什么不用 `CompletableFuture.allOf(...).join()` 后直接 `cf.get()`？"——可以，但 join 抛的是 CompletionException（unchecked），get 抛 ExecutionException（checked）+ InterruptedException，异常处理形态不同，链式代码里一般用 join。
 
 ---
