@@ -2,7 +2,7 @@
  "name": "保守党模拟盘",
  "start_date": "2026-10-28",
  "initial_capital": 1000.0,
- "cash": 273.953869329333,
+ "cash": 273.9601740211203,
  "holdings": [
   {
    "code": "515100",
@@ -152,6 +152,13 @@
    "cash": 273.95,
    "market_value": 735.91,
    "return_pct": 0.986
+  },
+  {
+   "date": "2026-11-24",
+   "equity": 1007.57,
+   "cash": 273.96,
+   "market_value": 733.61,
+   "return_pct": 0.757
   }
  ],
  "trades": [
@@ -174,5 +181,5 @@
    "amount": 82.26
   }
  ],
- "updated_at": "2026-11-23T16:30:34"
+ "updated_at": "2026-11-24T16:30:17"
 }
